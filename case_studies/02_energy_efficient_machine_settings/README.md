@@ -2,29 +2,85 @@
 
 ## Industrial problem
 
-Learn machine operating regions that reduce energy consumption without violating throughput, quality, or equipment constraints.
+Learn machine operating regions that reduce energy consumption without violating throughput, quality, or equipment-stability requirements.
 
-## Example variables
+This case study is fully executable. It uses a synthetic machining process controlled by spindle speed, feed rate, and machine load. The learner does not receive the mathematical form of the hidden stability envelope. It learns an acceptable-operation region from observed settings and outcomes.
 
-- spindle or motor speed
-- feed rate
-- load
-- idle time
-- coolant flow
-- cycle time
+## Decision variables
 
-## Learning target
+- spindle speed (rpm)
+- feed rate (mm/min)
+- machine load (normalized 0-1)
 
-An acceptable-operation label such as energy per unit below a threshold while throughput and quality remain above required levels.
+## Observed outcomes
+
+- energy per unit (kWh/unit)
+- throughput (units/hour)
+- quality score
+
+## Acceptable-operation definition
+
+A synthetic observation is labeled acceptable only when all of the following hold:
+
+- the hidden equipment-stability envelope is satisfied,
+- energy per unit is at most 2.00 kWh/unit,
+- throughput is at least 78 units/hour,
+- quality score is at least 93.
+
+The hidden stability rule creates a nonlinear feasible region. The classification model is trained on observed machine settings and the acceptable-operation label rather than on the explicit mathematical stability equation.
 
 ## Constraint-learning formulation
 
-Treat acceptable production as a constrained classification problem. Learn nonlinear combinations of settings that satisfy multiple performance conditions rather than optimizing energy in isolation.
+The acceptable operating region is learned with an RBF-kernel support vector classifier. The workflow includes:
 
-## Validation
+- stratified train/test separation,
+- feature standardization,
+- class balancing,
+- cross-validated hyperparameter tuning,
+- average precision as the tuning objective,
+- held-out balanced accuracy, F1, ROC AUC, and average precision,
+- descriptive quantile bounds for acceptable settings,
+- identification of the best observed acceptable point,
+- estimated energy reduction relative to the full observed operating population,
+- ROC and precision-recall curves,
+- a two-dimensional speed-feed slice through the learned three-dimensional region.
 
-Evaluate precision and recall for acceptable-operation detection, energy savings inside the learned region, throughput retention, and stability across machines or production shifts.
+## Files
 
-## Extension
+```text
+02_energy_efficient_machine_settings/
+├── README.md
+├── energy_data.py
+├── energy_constraint_learner.py
+└── run_case_study.py
+```
 
-Compare a global model with machine-specific models and evaluate whether learned constraints transfer across equipment of the same type.
+Repository-level tests are located in:
+
+```text
+tests/test_energy_efficiency_case_study.py
+```
+
+## Run
+
+From the repository root:
+
+```bash
+python case_studies/02_energy_efficient_machine_settings/run_case_study.py
+```
+
+The script writes the following figures into the repository-level `figures/` directory:
+
+```text
+energy_efficiency_roc_curve.png
+energy_efficiency_precision_recall_curve.png
+energy_efficiency_operating_region.png
+```
+
+## Interpretation
+
+The learned region is a decision-support approximation, not a substitute for OEM operating limits, engineering safety constraints, or regulatory requirements. In a real plant, hard equipment and safety constraints should remain explicit. Constraint learning is most useful for discovering additional data-driven operating envelopes that arise from interacting energy, throughput, quality, and process-stability requirements.
+
+## Extension opportunities
+
+Useful next steps include machine-specific models, transfer learning across similar equipment, shift-level drift detection, regression models for energy and throughput, and constrained optimization over the learned acceptable region.
