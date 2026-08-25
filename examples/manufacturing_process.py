@@ -1,4 +1,4 @@
-"""Run the manufacturing constraint-learning example."""
+"""Run the end-to-end manufacturing constraint-learning benchmark."""
 
 from pathlib import Path
 import sys
@@ -14,42 +14,80 @@ from industrial_constraint_learning import (  # noqa: E402
 )
 
 
+def print_evaluation(title: str, evaluation) -> None:
+    print(f"\n{title}")
+    print("Confusion matrix:")
+    print(evaluation.confusion_matrix)
+    print(
+        "Metrics: "
+        f"balanced_accuracy={evaluation.balanced_accuracy:.3f}, "
+        f"f1={evaluation.f1:.3f}, "
+        f"roc_auc={evaluation.roc_auc:.3f}, "
+        f"average_precision={evaluation.average_precision:.3f}"
+    )
+
+
 def main() -> None:
-    data = generate_manufacturing_data(n_samples=2000, random_state=42)
+    figures = ROOT / "figures"
+    data = generate_manufacturing_data(n_samples=5000, random_state=42)
+
     print("Synthetic manufacturing process data:")
     print(data.describe(include="all"))
+    print(f"Physical feasibility rate: {data['physical_feasible'].mean():.3f}")
+    print(f"High-yield rate: {(data['yield'] >= 85.0).mean():.3f}")
 
-    learner = ManufacturingConstraintLearner(
+    benchmark = ManufacturingConstraintLearner(
         data,
         high_yield_threshold=85.0,
         test_size=0.25,
         random_state=42,
+        label_mode="physical_feasibility",
     )
-    learner.fit_feasibility_classifier()
+    benchmark.tune_hyperparameters(cv_splits=5, scoring="average_precision")
+    print("\nBenchmark model tuned using physical feasibility labels")
+    print(f"Best parameters: {benchmark.best_params_}")
+    print(f"Best cross-validation score: {benchmark.cv_best_score_:.3f}")
+    print_evaluation("Held-out benchmark evaluation", benchmark.evaluate())
 
-    evaluation = learner.evaluate()
-    print("\nHeld-out confusion matrix:")
-    print(evaluation.confusion_matrix)
-    print("\nHeld-out classification metrics:")
-    for label in ("0", "1"):
-        metrics = evaluation.classification_report[label]
-        print(
-            f"class {label}: precision={metrics['precision']:.3f}, "
-            f"recall={metrics['recall']:.3f}, f1={metrics['f1-score']:.3f}"
-        )
-
-    bounds = learner.learn_high_yield_bounds(quantile_margin=0.01)
+    bounds = benchmark.learn_high_yield_bounds(quantile_margin=0.01)
     print("\nDescriptive high-yield operating bounds:")
     for parameter, values in bounds.items():
         print(f"  {parameter}: {values['min']:.2f} to {values['max']:.2f}")
 
-    best = learner.best_observed_feasible_point()
+    best = benchmark.best_observed_feasible_point()
     print("\nBest observed physically feasible point:")
     print(f"  temperature: {best['temperature']:.2f} °C")
     print(f"  pressure: {best['pressure']:.2f} MPa")
     print(f"  observed yield: {best['yield']:.2f}%")
 
-    learner.plot_learned_region()
+    benchmark.plot_boundary_comparison(
+        figures / "true_vs_learned_boundary.png",
+        show=False,
+    )
+    benchmark.plot_roc_pr_curves(figures, show=False)
+
+    outcome_only = ManufacturingConstraintLearner(
+        data,
+        high_yield_threshold=85.0,
+        test_size=0.25,
+        random_state=42,
+        label_mode="high_yield",
+    )
+    outcome_only.tune_hyperparameters(cv_splits=5, scoring="average_precision")
+    print("\nOutcome-only model tuned without physical feasibility labels")
+    print(f"Best parameters: {outcome_only.best_params_}")
+    print(f"Best cross-validation score: {outcome_only.cv_best_score_:.3f}")
+    print_evaluation("Held-out high-yield classification", outcome_only.evaluate())
+    print_evaluation(
+        "Recovery of hidden physical feasibility",
+        outcome_only.evaluate_against_physical_truth(),
+    )
+    outcome_only.plot_boundary_comparison(
+        figures / "outcome_only_vs_true_boundary.png",
+        show=False,
+    )
+
+    print(f"\nFigures saved to: {figures}")
 
 
 if __name__ == "__main__":
