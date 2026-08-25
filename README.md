@@ -1,12 +1,14 @@
 # Constraint Learning for Industrial Engineering
 
-This repository demonstrates how data-driven constraint learning can be applied to industrial engineering problems. The primary implemented case study is a synthetic manufacturing process with temperature, pressure, yield, and a known hidden physical operating envelope.
+This repository demonstrates how data-driven constraint learning can be applied to industrial engineering problems. Two case studies are currently fully executable: manufacturing process constraint recovery and energy-efficient machine settings.
 
-The project is educational and research-oriented. It separates physical feasibility from high-performance operation, evaluates learned regions on held-out data, uses cross-validation for model selection, and distinguishes descriptive operating bounds from exact constraints.
+The project is educational and research-oriented. It separates hard feasibility from high-performance operation, evaluates learned regions on held-out data, uses cross-validation for model selection, and distinguishes descriptive operating bounds from exact constraints.
 
-## Manufacturing benchmark
+## Implemented case studies
 
-The implemented manufacturing workflow includes:
+### 01. Manufacturing process optimization
+
+The manufacturing workflow includes:
 
 - reproducible synthetic process data generation,
 - known hidden physical constraints for benchmark evaluation,
@@ -23,6 +25,23 @@ The implemented manufacturing workflow includes:
 - a reproducible Jupyter notebook.
 
 The outcome-only mode is particularly important. In a real industrial system, engineers often observe process inputs and outcomes but do not have a perfect label describing the true physical operating envelope. The synthetic benchmark lets us hide that label during fitting and use it only afterward to evaluate constraint recovery.
+
+### 02. Energy-efficient machine settings
+
+The energy-efficiency workflow models spindle speed, feed rate, and machine load while simultaneously enforcing energy, throughput, quality, and hidden equipment-stability requirements. It includes:
+
+- reproducible synthetic machine-operation data,
+- a nonlinear hidden stability envelope,
+- an acceptable-operation label based on multiple simultaneous performance constraints,
+- RBF-SVM constraint learning,
+- cross-validated hyperparameter tuning using average precision,
+- held-out balanced accuracy, F1, ROC AUC, and average precision,
+- descriptive quantile bounds for acceptable settings,
+- identification of the lowest-energy observed acceptable point,
+- estimated energy reduction relative to the full observed operating population,
+- ROC and precision-recall curves,
+- a two-dimensional spindle-speed/feed-rate slice of the learned three-dimensional acceptable region,
+- automated tests.
 
 ## Repository structure
 
@@ -48,6 +67,10 @@ constraint-learning-for-industrial-engineering/
 ├── case_studies/
 │   ├── 01_manufacturing_process_optimization/
 │   ├── 02_energy_efficient_machine_settings/
+│   │   ├── README.md
+│   │   ├── energy_data.py
+│   │   ├── energy_constraint_learner.py
+│   │   └── run_case_study.py
 │   ├── 03_assembly_quality_control/
 │   ├── 04_supply_chain_feasibility/
 │   ├── 05_warehouse_slotting/
@@ -57,7 +80,8 @@ constraint-learning-for-industrial-engineering/
 │   ├── 09_inventory_control/
 │   └── 10_multi_product_line_balancing/
 └── tests/
-    └── test_constraint_learner.py
+    ├── test_constraint_learner.py
+    └── test_energy_efficiency_case_study.py
 ```
 
 ## Installation
@@ -75,7 +99,13 @@ pip install -r requirements.txt
 python examples/manufacturing_process.py
 ```
 
-The script writes evaluation figures into `figures/`.
+## Run the energy-efficiency benchmark
+
+```bash
+python case_studies/02_energy_efficient_machine_settings/run_case_study.py
+```
+
+Both executable case studies write evaluation figures into `figures/`.
 
 ## Run the notebook
 
@@ -89,19 +119,23 @@ jupyter lab notebooks/manufacturing_constraint_learning.ipynb
 pytest -q
 ```
 
+GitHub Actions runs the test suite on Python 3.10, 3.11, and 3.12.
+
 ## Methodological notes
 
-The original prototype used DBSCAN to keep the largest high-yield cluster and fitted a quadratic curve directly to feasible points. That approach can be misleading because a polynomial regression through interior feasible observations does not estimate an upper or lower constraint boundary.
+The original manufacturing prototype used DBSCAN to keep the largest high-yield cluster and fitted a quadratic curve directly to feasible points. That approach can be misleading because a polynomial regression through interior feasible observations does not estimate an upper or lower constraint boundary.
 
-This implementation treats constraint recovery as a classification problem. In the benchmark mode, the model learns the known synthetic feasibility labels. In the outcome-only mode, labels are derived only from observed yield. The hidden physical constraint is then used strictly as an external benchmark.
+The implemented examples treat constraint recovery as classification. In benchmark settings, hidden synthetic rules are available only to evaluate whether the learned region resembles the intended feasible or acceptable region. They are not supplied to the classifier as mathematical constraints.
 
-The simple operating bounds are quantile-based descriptive summaries. They are intentionally not presented as exact physical constraints.
+Descriptive operating bounds are quantile-based summaries. They are intentionally not presented as exact physical constraints.
 
-ROC AUC is reported, but average precision and the precision-recall curve are emphasized because feasible or high-yield observations may be relatively rare. Balanced accuracy is also reported to reduce the risk of interpreting majority-class accuracy as good constraint recovery.
+ROC AUC is reported, but average precision and the precision-recall curve are emphasized because feasible or acceptable observations may be relatively rare. Balanced accuracy is also reported to reduce the risk of interpreting majority-class accuracy as good constraint recovery.
+
+In real industrial applications, learned constraints should complement rather than replace explicit OEM limits, engineering safety rules, regulatory constraints, and validated process specifications.
 
 ## Case studies
 
-Ten industrial engineering applications are organized under `case_studies/`. The manufacturing case is fully implemented in the reusable Python package. The remaining case-study folders define the industrial problem, candidate variables, learning target, constraint-learning formulation, validation strategy, and extension path for future executable implementations.
+Ten industrial engineering applications are organized under `case_studies/`. Cases 01 and 02 are executable. Cases 03-10 currently contain project specifications that can be expanded into independent computational experiments.
 
 ## License
 
