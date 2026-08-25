@@ -1,6 +1,6 @@
 # Constraint Learning for Industrial Engineering
 
-This repository demonstrates how data-driven constraint learning can be applied to industrial engineering problems. Five case studies are currently fully executable: manufacturing process constraint recovery, energy-efficient machine settings, assembly quality control, supply-chain feasibility, and warehouse slotting.
+This repository demonstrates how data-driven constraint learning can be applied to industrial engineering problems. Six case studies are currently fully executable: manufacturing process constraint recovery, energy-efficient machine settings, assembly quality control, supply-chain feasibility, warehouse slotting, and job-shop scheduling.
 
 The project is educational and research-oriented. It separates hard feasibility from high-performance operation, evaluates learned regions on held-out data, uses cross-validation for model selection, and distinguishes descriptive operating bounds from exact constraints.
 
@@ -24,20 +24,23 @@ The supply-chain workflow models supplier lead time, demand volatility, order qu
 
 ### 05. Warehouse slotting
 
-The warehouse-slotting workflow models SKU velocity, unit weight, item cube, aisle distance, replenishment frequency, and neighboring pick density. Feasibility requires acceptable picking time, congestion, ergonomic risk, and a hidden nonlinear warehouse-stability condition. It includes:
+The warehouse-slotting workflow models SKU velocity, unit weight, item cube, aisle distance, replenishment frequency, and neighboring pick density. Feasibility requires acceptable picking time, congestion, ergonomic risk, and a hidden nonlinear warehouse-stability condition. It includes class-balanced nonlinear constraint learning, operational unsafe-accept metrics, descriptive feasible-region summaries, performance-improvement analysis, region visualization, and automated tests.
 
-- reproducible synthetic SKU-location observations,
-- a nonlinear hidden stability score,
-- a composite feasible-slotting target,
+### 06. Job-shop scheduling
+
+The job-shop workflow models job count, due-date tightness, machine utilization, processing-time variability, setup-time ratio, and machine availability. A scheduling episode is feasible only when a hidden nonlinear stability condition is satisfied and tardiness, overtime, and work-in-process stay within limits. The implementation includes:
+
+- reproducible synthetic scheduling episodes,
+- a nonlinear hidden workload-stability score,
+- a composite feasible-schedule target,
 - RBF-SVM constraint learning,
 - class balancing and cross-validated hyperparameter tuning,
 - balanced accuracy, F1, ROC AUC, average precision, precision, and recall,
-- an unsafe-accept rate for infeasible slotting assignments incorrectly accepted by the model,
+- a false-feasible rate for infeasible scheduling episodes incorrectly accepted by the model,
 - quantile-based descriptive bounds,
-- identification of the best observed feasible slot,
-- estimated picking-time and congestion reduction inside the feasible region,
+- identification of the best observed feasible scheduling episode,
 - ROC and precision-recall curves,
-- a two-dimensional SKU-velocity/aisle-distance slice of the learned six-dimensional feasibility region,
+- a two-dimensional utilization/due-date-tightness slice of the learned six-dimensional region,
 - automated tests.
 
 ## Repository structure
@@ -67,11 +70,11 @@ constraint-learning-for-industrial-engineering/
 │   ├── 03_assembly_quality_control/
 │   ├── 04_supply_chain_feasibility/
 │   ├── 05_warehouse_slotting/
-│   │   ├── README.md
-│   │   ├── warehouse_data.py
-│   │   ├── warehouse_constraint_learner.py
-│   │   └── run_case_study.py
 │   ├── 06_job_shop_scheduling/
+│   │   ├── README.md
+│   │   ├── scheduling_data.py
+│   │   ├── scheduling_constraint_learner.py
+│   │   └── run_case_study.py
 │   ├── 07_product_design_space/
 │   ├── 08_workforce_shift_scheduling/
 │   ├── 09_inventory_control/
@@ -81,7 +84,8 @@ constraint-learning-for-industrial-engineering/
     ├── test_energy_efficiency_case_study.py
     ├── test_assembly_quality_case_study.py
     ├── test_supply_chain_case_study.py
-    └── test_warehouse_slotting_case_study.py
+    ├── test_warehouse_slotting_case_study.py
+    └── test_job_shop_scheduling_case_study.py
 ```
 
 ## Installation
@@ -101,6 +105,7 @@ python case_studies/02_energy_efficient_machine_settings/run_case_study.py
 python case_studies/03_assembly_quality_control/run_case_study.py
 python case_studies/04_supply_chain_feasibility/run_case_study.py
 python case_studies/05_warehouse_slotting/run_case_study.py
+python case_studies/06_job_shop_scheduling/run_case_study.py
 ```
 
 The executable case studies write evaluation figures into `figures/`.
@@ -129,13 +134,13 @@ Descriptive operating bounds are quantile-based summaries. They are intentionall
 
 ROC AUC is reported, but average precision and the precision-recall curve are emphasized because feasible or acceptable observations may be relatively rare. Balanced accuracy is also reported to reduce the risk of interpreting majority-class accuracy as good constraint recovery.
 
-For quality-control applications, false accept and false reject rates are reported because the operational costs of passing a defective item and rejecting a conforming item are asymmetric. For supply-chain and warehouse applications, analogous unsafe-accept metrics highlight configurations that the model would incorrectly treat as feasible.
+For quality-control applications, false accept and false reject rates are reported because the operational costs of passing a defective item and rejecting a conforming item are asymmetric. For supply-chain, warehouse, and scheduling applications, analogous false-feasible or unsafe-accept metrics highlight configurations that the model would incorrectly treat as feasible.
 
-In real industrial applications, learned constraints should complement rather than replace explicit OEM limits, engineering safety rules, regulatory constraints, contractual constraints, rack/storage constraints, fire-code requirements, and validated process specifications.
+In real industrial applications, learned constraints should complement rather than replace explicit OEM limits, engineering safety rules, regulatory constraints, contractual constraints, precedence relations, machine-capacity limits, storage constraints, fire-code requirements, and validated process specifications.
 
 ## Case studies
 
-Ten industrial engineering applications are organized under `case_studies/`. Cases 01-05 are executable. Cases 06-10 currently contain project specifications that can be expanded into independent computational experiments.
+Ten industrial engineering applications are organized under `case_studies/`. Cases 01-06 are executable. Cases 07-10 currently contain project specifications that can be expanded into independent computational experiments.
 
 ## License
 
