@@ -1,6 +1,6 @@
 # Constraint Learning for Industrial Engineering
 
-This repository demonstrates how data-driven constraint learning can be applied to industrial engineering problems. Two case studies are currently fully executable: manufacturing process constraint recovery and energy-efficient machine settings.
+This repository demonstrates how data-driven constraint learning can be applied to industrial engineering problems. Three case studies are currently fully executable: manufacturing process constraint recovery, energy-efficient machine settings, and assembly quality control.
 
 The project is educational and research-oriented. It separates hard feasibility from high-performance operation, evaluates learned regions on held-out data, uses cross-validation for model selection, and distinguishes descriptive operating bounds from exact constraints.
 
@@ -43,6 +43,23 @@ The energy-efficiency workflow models spindle speed, feed rate, and machine load
 - a two-dimensional spindle-speed/feed-rate slice of the learned three-dimensional acceptable region,
 - automated tests.
 
+### 03. Assembly quality control
+
+The assembly-quality workflow models tightening torque, tightening angle, tool speed, insertion force, and component temperature. Acceptable operation requires a hidden nonlinear stability condition, adequate end-of-line quality, adequate joint strength, and acceptable cycle time. It includes:
+
+- reproducible synthetic assembly-process data,
+- a nonlinear interaction-based hidden stability surface,
+- a composite acceptable-operation label,
+- RBF-SVM constraint learning,
+- class balancing and cross-validated hyperparameter tuning,
+- balanced accuracy, F1, ROC AUC, average precision, precision, and recall,
+- false accept and false reject rates,
+- descriptive quantile bounds for acceptable assembly settings,
+- identification of the highest-strength observed acceptable joint,
+- ROC and precision-recall curves,
+- a two-dimensional torque/angle slice of the learned five-dimensional acceptable region,
+- automated tests.
+
 ## Repository structure
 
 ```text
@@ -72,6 +89,10 @@ constraint-learning-for-industrial-engineering/
 │   │   ├── energy_constraint_learner.py
 │   │   └── run_case_study.py
 │   ├── 03_assembly_quality_control/
+│   │   ├── README.md
+│   │   ├── assembly_data.py
+│   │   ├── assembly_constraint_learner.py
+│   │   └── run_case_study.py
 │   ├── 04_supply_chain_feasibility/
 │   ├── 05_warehouse_slotting/
 │   ├── 06_job_shop_scheduling/
@@ -81,7 +102,8 @@ constraint-learning-for-industrial-engineering/
 │   └── 10_multi_product_line_balancing/
 └── tests/
     ├── test_constraint_learner.py
-    └── test_energy_efficiency_case_study.py
+    ├── test_energy_efficiency_case_study.py
+    └── test_assembly_quality_case_study.py
 ```
 
 ## Installation
@@ -105,7 +127,13 @@ python examples/manufacturing_process.py
 python case_studies/02_energy_efficient_machine_settings/run_case_study.py
 ```
 
-Both executable case studies write evaluation figures into `figures/`.
+## Run the assembly-quality benchmark
+
+```bash
+python case_studies/03_assembly_quality_control/run_case_study.py
+```
+
+The executable case studies write evaluation figures into `figures/`.
 
 ## Run the notebook
 
@@ -131,11 +159,13 @@ Descriptive operating bounds are quantile-based summaries. They are intentionall
 
 ROC AUC is reported, but average precision and the precision-recall curve are emphasized because feasible or acceptable observations may be relatively rare. Balanced accuracy is also reported to reduce the risk of interpreting majority-class accuracy as good constraint recovery.
 
+For quality-control applications, false accept and false reject rates are also reported because the operational costs of passing a defective item and rejecting a conforming item are asymmetric.
+
 In real industrial applications, learned constraints should complement rather than replace explicit OEM limits, engineering safety rules, regulatory constraints, and validated process specifications.
 
 ## Case studies
 
-Ten industrial engineering applications are organized under `case_studies/`. Cases 01 and 02 are executable. Cases 03-10 currently contain project specifications that can be expanded into independent computational experiments.
+Ten industrial engineering applications are organized under `case_studies/`. Cases 01, 02, and 03 are executable. Cases 04-10 currently contain project specifications that can be expanded into independent computational experiments.
 
 ## License
 
