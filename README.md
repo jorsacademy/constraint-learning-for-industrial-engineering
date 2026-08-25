@@ -1,6 +1,6 @@
 # Constraint Learning for Industrial Engineering
 
-This repository demonstrates how data-driven constraint learning can be applied to industrial engineering problems. Three case studies are currently fully executable: manufacturing process constraint recovery, energy-efficient machine settings, and assembly quality control.
+This repository demonstrates how data-driven constraint learning can be applied to industrial engineering problems. Four case studies are currently fully executable: manufacturing process constraint recovery, energy-efficient machine settings, assembly quality control, and supply-chain feasibility.
 
 The project is educational and research-oriented. It separates hard feasibility from high-performance operation, evaluates learned regions on held-out data, uses cross-validation for model selection, and distinguishes descriptive operating bounds from exact constraints.
 
@@ -8,56 +8,31 @@ The project is educational and research-oriented. It separates hard feasibility 
 
 ### 01. Manufacturing process optimization
 
-The manufacturing workflow includes:
-
-- reproducible synthetic process data generation,
-- known hidden physical constraints for benchmark evaluation,
-- an outcome-only learning mode that does not use the hidden feasibility label during training,
-- stratified train/test separation,
-- RBF-SVM nonlinear decision boundaries,
-- cross-validated hyperparameter tuning,
-- confusion matrix, balanced accuracy, F1, ROC AUC, and average precision,
-- ROC and precision-recall curves,
-- true-vs-learned constraint boundary comparison,
-- robust quantile summaries for high-yield operation,
-- identification of the best observed physically feasible point,
-- automated tests,
-- a reproducible Jupyter notebook.
-
-The outcome-only mode is particularly important. In a real industrial system, engineers often observe process inputs and outcomes but do not have a perfect label describing the true physical operating envelope. The synthetic benchmark lets us hide that label during fitting and use it only afterward to evaluate constraint recovery.
+The manufacturing workflow includes reproducible synthetic process data, known hidden physical constraints for benchmark evaluation, an outcome-only learning mode, stratified train/test separation, RBF-SVM nonlinear decision boundaries, cross-validated hyperparameter tuning, classification metrics, ROC and precision-recall curves, true-vs-learned boundary comparison, descriptive operating bounds, automated tests, and a reproducible notebook.
 
 ### 02. Energy-efficient machine settings
 
-The energy-efficiency workflow models spindle speed, feed rate, and machine load while simultaneously enforcing energy, throughput, quality, and hidden equipment-stability requirements. It includes:
-
-- reproducible synthetic machine-operation data,
-- a nonlinear hidden stability envelope,
-- an acceptable-operation label based on multiple simultaneous performance constraints,
-- RBF-SVM constraint learning,
-- cross-validated hyperparameter tuning using average precision,
-- held-out balanced accuracy, F1, ROC AUC, and average precision,
-- descriptive quantile bounds for acceptable settings,
-- identification of the lowest-energy observed acceptable point,
-- estimated energy reduction relative to the full observed operating population,
-- ROC and precision-recall curves,
-- a two-dimensional spindle-speed/feed-rate slice of the learned three-dimensional acceptable region,
-- automated tests.
+The energy-efficiency workflow models spindle speed, feed rate, and machine load while simultaneously enforcing energy, throughput, quality, and hidden equipment-stability requirements. It includes nonlinear constraint learning, class balancing, model selection with average precision, held-out evaluation, energy-saving analysis, interpretable operating summaries, region visualization, and automated tests.
 
 ### 03. Assembly quality control
 
-The assembly-quality workflow models tightening torque, tightening angle, tool speed, insertion force, and component temperature. Acceptable operation requires a hidden nonlinear stability condition, adequate end-of-line quality, adequate joint strength, and acceptable cycle time. It includes:
+The assembly-quality workflow models tightening torque, tightening angle, tool speed, insertion force, and component temperature. Acceptable operation requires a hidden nonlinear stability condition, adequate end-of-line quality, adequate joint strength, and acceptable cycle time. It reports false accept and false reject rates in addition to standard classification metrics.
 
-- reproducible synthetic assembly-process data,
-- a nonlinear interaction-based hidden stability surface,
-- a composite acceptable-operation label,
+### 04. Supply-chain feasibility
+
+The supply-chain workflow models supplier lead time, demand volatility, order quantity, safety stock, supplier utilization, and transport time. Feasibility requires adequate service level, acceptable logistics cost, and a hidden nonlinear stability condition. It includes:
+
+- reproducible synthetic order-cycle data,
+- nonlinear supply-chain stability interactions,
+- a composite feasible-service target,
 - RBF-SVM constraint learning,
 - class balancing and cross-validated hyperparameter tuning,
 - balanced accuracy, F1, ROC AUC, average precision, precision, and recall,
-- false accept and false reject rates,
-- descriptive quantile bounds for acceptable assembly settings,
-- identification of the highest-strength observed acceptable joint,
+- a missed-failure rate for infeasible cycles incorrectly accepted by the model,
+- robust descriptive bounds for feasible operating settings,
+- identification of the best observed service-cost point,
 - ROC and precision-recall curves,
-- a two-dimensional torque/angle slice of the learned five-dimensional acceptable region,
+- a two-dimensional lead-time/demand-volatility slice of the learned six-dimensional feasible region,
 - automated tests.
 
 ## Repository structure
@@ -84,16 +59,12 @@ constraint-learning-for-industrial-engineering/
 ├── case_studies/
 │   ├── 01_manufacturing_process_optimization/
 │   ├── 02_energy_efficient_machine_settings/
-│   │   ├── README.md
-│   │   ├── energy_data.py
-│   │   ├── energy_constraint_learner.py
-│   │   └── run_case_study.py
 │   ├── 03_assembly_quality_control/
-│   │   ├── README.md
-│   │   ├── assembly_data.py
-│   │   ├── assembly_constraint_learner.py
-│   │   └── run_case_study.py
 │   ├── 04_supply_chain_feasibility/
+│   │   ├── README.md
+│   │   ├── supply_chain_data.py
+│   │   ├── supply_chain_constraint_learner.py
+│   │   └── run_case_study.py
 │   ├── 05_warehouse_slotting/
 │   ├── 06_job_shop_scheduling/
 │   ├── 07_product_design_space/
@@ -103,7 +74,8 @@ constraint-learning-for-industrial-engineering/
 └── tests/
     ├── test_constraint_learner.py
     ├── test_energy_efficiency_case_study.py
-    └── test_assembly_quality_case_study.py
+    ├── test_assembly_quality_case_study.py
+    └── test_supply_chain_case_study.py
 ```
 
 ## Installation
@@ -115,22 +87,13 @@ source .venv/bin/activate  # Linux/macOS
 pip install -r requirements.txt
 ```
 
-## Run the manufacturing benchmark
+## Run the executable benchmarks
 
 ```bash
 python examples/manufacturing_process.py
-```
-
-## Run the energy-efficiency benchmark
-
-```bash
 python case_studies/02_energy_efficient_machine_settings/run_case_study.py
-```
-
-## Run the assembly-quality benchmark
-
-```bash
 python case_studies/03_assembly_quality_control/run_case_study.py
+python case_studies/04_supply_chain_feasibility/run_case_study.py
 ```
 
 The executable case studies write evaluation figures into `figures/`.
@@ -159,13 +122,13 @@ Descriptive operating bounds are quantile-based summaries. They are intentionall
 
 ROC AUC is reported, but average precision and the precision-recall curve are emphasized because feasible or acceptable observations may be relatively rare. Balanced accuracy is also reported to reduce the risk of interpreting majority-class accuracy as good constraint recovery.
 
-For quality-control applications, false accept and false reject rates are also reported because the operational costs of passing a defective item and rejecting a conforming item are asymmetric.
+For quality-control applications, false accept and false reject rates are reported because the operational costs of passing a defective item and rejecting a conforming item are asymmetric. For supply-chain applications, the missed-failure rate similarly highlights configurations that the model would incorrectly treat as feasible.
 
-In real industrial applications, learned constraints should complement rather than replace explicit OEM limits, engineering safety rules, regulatory constraints, and validated process specifications.
+In real industrial applications, learned constraints should complement rather than replace explicit OEM limits, engineering safety rules, regulatory constraints, contractual constraints, and validated process specifications.
 
 ## Case studies
 
-Ten industrial engineering applications are organized under `case_studies/`. Cases 01, 02, and 03 are executable. Cases 04-10 currently contain project specifications that can be expanded into independent computational experiments.
+Ten industrial engineering applications are organized under `case_studies/`. Cases 01-04 are executable. Cases 05-10 currently contain project specifications that can be expanded into independent computational experiments.
 
 ## License
 
