@@ -133,7 +133,7 @@ The manufacturing learner exposes calibrated feasibility probabilities using a s
 A learned feasibility probability is not treated as a deterministic engineering guarantee. Downstream decisions can be screened with a configurable threshold:
 
 ```python
-optimizer = learner.safe_optimizer(min_probability=0.90)
+optimizer = learner.safe_optimizer(min_probability=0.50)
 result = optimizer.optimize(
     candidates,
     objective=objective_function,
@@ -142,7 +142,7 @@ result = optimizer.optimize(
 )
 ```
 
-The optimizer first enforces explicit hard constraints, then requires the learned feasibility probability to exceed the configured threshold, and only then compares objective values. This keeps OEM limits, legal rules, capacity limits, precedence relations, and other validated deterministic requirements separate from data-driven constraints.
+The optimizer first enforces explicit hard constraints, then requires the learned feasibility probability to exceed the configured threshold, and only then compares objective values. The default threshold of 0.50 matches the calibrated classifier decision rule; it is not a certified safety level. Higher thresholds should be chosen only after validating false-feasible behavior and the resulting feasible-set coverage for the application. This keeps OEM limits, legal rules, capacity limits, precedence relations, and other validated deterministic requirements separate from data-driven constraints.
 
 For synthetic benchmarks with known ground truth, `boundary_metrics()` reports intersection-over-union, false-feasible rate, false-infeasible rate, feasible precision/recall, and learned-vs-true feasible-region size. The false-feasible rate is particularly important because it measures the share of truly infeasible operating points incorrectly accepted by the learned model.
 
