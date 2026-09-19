@@ -166,8 +166,10 @@ class TabularConstraintLearner:
             self.best_params_ = dict(search.best_params_)
             self.cv_best_score_ = float(search.best_score_)
 
+        X_classifier = pd.concat([X_fit, X_safety]).sort_index()
+        y_classifier = pd.concat([y_fit, y_safety]).sort_index()
         self.classifier_model = clone(estimator)
-        self.classifier_model.fit(X_fit, y_fit)
+        self.classifier_model.fit(X_classifier, y_classifier)
         self.model = self._calibrated(estimator)
         self.model.fit(X_fit, y_fit)
         safety_scores = np.asarray(
