@@ -2,7 +2,7 @@
 
 This repository demonstrates how data-driven constraint learning can be applied to industrial engineering problems. Six case studies are currently fully executable: manufacturing process constraint recovery, energy-efficient machine settings, assembly quality control, supply-chain feasibility, warehouse slotting, and job-shop scheduling.
 
-The project is educational and research-oriented. It separates hard feasibility from high-performance operation, evaluates learned regions on held-out data, uses cross-validation for model selection, and distinguishes descriptive operating bounds from exact constraints.
+The project is educational and research-oriented. It separates hard feasibility from high-performance operation, evaluates learned regions on held-out data, uses cross-validation for model selection, and distinguishes descriptive operating bounds from exact constraints. The manufacturing benchmark now also exposes cross-validated probability calibration, operational feasible-region diagnostics, and a downstream candidate optimizer that combines learned probabilistic constraints with explicit hard constraints.
 
 ## Implemented case studies
 
@@ -58,7 +58,9 @@ constraint-learning-for-industrial-engineering/
 │   └── industrial_constraint_learning/
 │       ├── __init__.py
 │       ├── data_generation.py
-│       └── constraint_learner.py
+│       ├── constraint_learner.py
+│       ├── metrics.py
+│       └── optimization.py
 ├── examples/
 │   └── manufacturing_process.py
 ├── notebooks/
@@ -124,6 +126,26 @@ pytest -q
 
 GitHub Actions runs the test suite on Python 3.10, 3.11, and 3.12.
 
+## Safe learned constraints and downstream optimization
+
+The manufacturing learner exposes calibrated feasibility probabilities using a sigmoid calibration layer fitted by cross-validation on the training partition. The held-out test partition remains untouched for evaluation.
+
+A learned feasibility probability is not treated as a deterministic engineering guarantee. Downstream decisions can be screened with a configurable threshold:
+
+```python
+optimizer = learner.safe_optimizer(min_probability=0.50)
+result = optimizer.optimize(
+    candidates,
+    objective=objective_function,
+    hard_constraint=hard_constraint_function,
+    maximize=False,
+)
+```
+
+The optimizer first enforces explicit hard constraints, then requires the learned feasibility probability to exceed the configured threshold, and only then compares objective values. The default threshold of 0.50 matches the calibrated classifier decision rule; it is not a certified safety level. Higher thresholds should be chosen only after validating false-feasible behavior and the resulting feasible-set coverage for the application. This keeps OEM limits, legal rules, capacity limits, precedence relations, and other validated deterministic requirements separate from data-driven constraints.
+
+For synthetic benchmarks with known ground truth, `boundary_metrics()` reports intersection-over-union, false-feasible rate, false-infeasible rate, feasible precision/recall, and learned-vs-true feasible-region size. The false-feasible rate is particularly important because it measures the share of truly infeasible operating points incorrectly accepted by the learned model.
+
 ## Methodological notes
 
 The original manufacturing prototype used DBSCAN to keep the largest high-yield cluster and fitted a quadratic curve directly to feasible points. That approach can be misleading because a polynomial regression through interior feasible observations does not estimate an upper or lower constraint boundary.
@@ -133,6 +155,8 @@ The implemented examples treat constraint recovery as classification. In benchma
 Descriptive operating bounds are quantile-based summaries. They are intentionally not presented as exact physical constraints.
 
 ROC AUC is reported, but average precision and the precision-recall curve are emphasized because feasible or acceptable observations may be relatively rare. Balanced accuracy is also reported to reduce the risk of interpreting majority-class accuracy as good constraint recovery.
+
+Probability calibration improves the interpretation of model scores but does not convert empirical probabilities into physical, regulatory, or contractual guarantees. The probability threshold used by the safe candidate optimizer is therefore an operational risk parameter rather than a certified safety level.
 
 For quality-control applications, false accept and false reject rates are reported because the operational costs of passing a defective item and rejecting a conforming item are asymmetric. For supply-chain, warehouse, and scheduling applications, analogous false-feasible or unsafe-accept metrics highlight configurations that the model would incorrectly treat as feasible.
 

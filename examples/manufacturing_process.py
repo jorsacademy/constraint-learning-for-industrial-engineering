@@ -3,6 +3,9 @@
 from pathlib import Path
 import sys
 
+import numpy as np
+import pandas as pd
+
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 if str(SRC) not in sys.path:
@@ -65,6 +68,39 @@ def main() -> None:
         show=False,
     )
     benchmark.plot_roc_pr_curves(figures, show=False)
+
+    region_metrics = benchmark.boundary_metrics(grid_resolution=200)
+    print("\nLearned feasible-region diagnostics:")
+    print(f"  IoU: {region_metrics.intersection_over_union:.3f}")
+    print(f"  false-feasible rate: {region_metrics.false_feasible_rate:.3f}")
+    print(f"  false-infeasible rate: {region_metrics.false_infeasible_rate:.3f}")
+
+    temperatures = np.linspace(150.0, 350.0, 81)
+    pressures = np.linspace(2.0, 8.0, 61)
+    tt, pp = np.meshgrid(temperatures, pressures)
+    candidates = pd.DataFrame(
+        {"temperature": tt.ravel(), "pressure": pp.ravel()}
+    )
+    safe_optimizer = benchmark.safe_optimizer(min_probability=0.50)
+    safe_solution = safe_optimizer.optimize(
+        candidates,
+        objective=lambda frame: (
+            0.02 * frame["temperature"] + 0.60 * frame["pressure"]
+        ),
+        hard_constraint=lambda frame: (
+            frame["temperature"].between(150.0, 350.0)
+            & frame["pressure"].between(2.0, 8.0)
+        ),
+        maximize=False,
+    )
+    print("\nIllustrative safe operating-point optimization:")
+    print(f"  temperature: {safe_solution.point['temperature']:.2f} °C")
+    print(f"  pressure: {safe_solution.point['pressure']:.2f} MPa")
+    print(
+        "  learned feasibility probability: "
+        f"{safe_solution.feasibility_probability:.3f}"
+    )
+    print(f"  process-effort proxy: {safe_solution.objective_value:.3f}")
 
     outcome_only = ManufacturingConstraintLearner(
         data,
