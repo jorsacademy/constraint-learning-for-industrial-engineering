@@ -95,7 +95,8 @@ class ManufacturingConstraintLearner:
         self.label_mode = label_mode
         self.calibration_cv_splits = calibration_cv_splits
         self.safety_calibration_size = float(safety_calibration_size)
-        self.model: CalibratedClassifierCV | Pipeline | None = None
+        self.classifier_model: Pipeline | None = None
+        self.model: CalibratedClassifierCV | None = None
         self.safety_filter: ConformalSafetyFilter | None = None
         self.simple_bounds: Dict[str, Dict[str, float]] = {}
         self.best_params_: Dict[str, object] | None = None
@@ -169,7 +170,10 @@ class ManufacturingConstraintLearner:
         X_fit, X_safety, X_test, y_fit, y_safety, y_test = (
             self._train_test_safety_split(X, y)
         )
-        self.model = self._calibrated_model(self._base_pipeline())
+        base_estimator = self._base_pipeline()
+        self.classifier_model = clone(base_estimator)
+        self.classifier_model.fit(X_fit, y_fit)
+        self.model = self._calibrated_model(base_estimator)
         self.model.fit(X_fit, y_fit)
         self._fit_safety_filter(X_safety, y_safety)
         self._split = (X_fit, X_test, y_fit, y_test)
@@ -209,7 +213,10 @@ class ManufacturingConstraintLearner:
         )
         search.fit(X_fit, y_fit)
 
-        self.model = self._calibrated_model(clone(search.best_estimator_))
+        best_estimator = clone(search.best_estimator_)
+        self.classifier_model = clone(best_estimator)
+        self.classifier_model.fit(X_fit, y_fit)
+        self.model = self._calibrated_model(best_estimator)
         self.model.fit(X_fit, y_fit)
         self._fit_safety_filter(X_safety, y_safety)
         self._split = (X_fit, X_test, y_fit, y_test)
@@ -227,11 +234,11 @@ class ManufacturingConstraintLearner:
 
     def evaluate(self) -> ConstraintEvaluation:
         """Evaluate the learned constraint on held-out data."""
-        if self.model is None or self._split is None:
+        if self.model is None or self.classifier_model is None or self._split is None:
             raise RuntimeError("Fit the classifier before evaluation")
 
         _, X_test, _, y_test = self._split
-        predictions = self.model.predict(X_test)
+        predictions = self.classifier_model.predict(X_test)
         scores = self._continuous_scores(X_test)
         report = classification_report(
             y_test,
@@ -257,12 +264,12 @@ class ManufacturingConstraintLearner:
         """
         if "physical_feasible" not in self.data.columns:
             raise RuntimeError("physical_feasible is required for benchmark evaluation")
-        if self.model is None or self._split is None:
+        if self.model is None or self.classifier_model is None or self._split is None:
             raise RuntimeError("Fit the classifier before evaluation")
 
         _, X_test, _, _ = self._split
         y_true = self.data.loc[X_test.index, "physical_feasible"].astype(int)
-        predictions = self.model.predict(X_test)
+        predictions = self.classifier_model.predict(X_test)
         scores = self._continuous_scores(X_test)
         report = classification_report(
             y_true,
@@ -319,10 +326,10 @@ class ManufacturingConstraintLearner:
 
     def predict_feasible(self, temperature: float, pressure: float) -> bool:
         """Predict whether an operating point belongs to the learned region."""
-        if self.model is None:
+        if self.classifier_model is None:
             raise RuntimeError("Fit the classifier before prediction")
         X = pd.DataFrame({"temperature": [temperature], "pressure": [pressure]})
-        return bool(self.model.predict(X)[0])
+        return bool(self.classifier_model.predict(X)[0])
 
     def predict_feasibility_probability(
         self,
@@ -406,7 +413,7 @@ class ManufacturingConstraintLearner:
 
     def boundary_metrics(self, grid_resolution: int = 200) -> BinaryRegionMetrics:
         """Evaluate learned-vs-true feasible regions on a dense synthetic grid."""
-        if self.model is None:
+        if self.classifier_model is None:
             raise RuntimeError("Fit the classifier before boundary evaluation")
         if grid_resolution < 10:
             raise ValueError("grid_resolution must be at least 10")
@@ -417,7 +424,7 @@ class ManufacturingConstraintLearner:
         grid = pd.DataFrame(
             {"temperature": tt.ravel(), "pressure": pp.ravel()}
         )
-        learned = self.model.predict(grid).reshape(tt.shape)
+        learned = self.classifier_model.predict(grid).reshape(tt.shape)
         truth = self.true_physical_feasibility(tt, pp)
         return evaluate_binary_region(truth, learned)
 
@@ -470,7 +477,7 @@ class ManufacturingConstraintLearner:
         grid_resolution: int = 350,
     ) -> None:
         """Compare the learned decision region with the known synthetic truth."""
-        if self.model is None:
+        if self.classifier_model is None:
             raise RuntimeError("Fit the classifier before plotting")
 
         t_values = np.linspace(50.0, 450.0, grid_resolution)
@@ -479,7 +486,7 @@ class ManufacturingConstraintLearner:
         grid = pd.DataFrame(
             {"temperature": tt.ravel(), "pressure": pp.ravel()}
         )
-        learned = self.model.predict(grid).reshape(tt.shape)
+        learned = self.classifier_model.predict(grid).reshape(tt.shape)
         truth = self.true_physical_feasibility(tt, pp).astype(int)
 
         fig, ax = plt.subplots(figsize=(12, 8))
