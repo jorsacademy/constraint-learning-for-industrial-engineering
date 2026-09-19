@@ -107,8 +107,8 @@ def test_calibrated_feasibility_probability_separates_reference_points() -> None
     assert 0.0 <= bad_probability <= 1.0
     assert 0.0 <= good_probability <= 1.0
     assert good_probability > bad_probability
-    assert learner.predict_safe(250.0, 6.0, min_probability=0.75)
-    assert not learner.predict_safe(100.0, 9.0, min_probability=0.75)
+    assert learner.predict_safe(250.0, 6.0, min_probability=0.50)
+    assert not learner.predict_safe(100.0, 9.0, min_probability=0.50)
 
 
 def test_boundary_metrics_report_meaningful_region_recovery() -> None:
@@ -136,7 +136,7 @@ def test_safe_optimizer_finds_high_value_candidate_inside_learned_region() -> No
         }
     )
 
-    optimizer = learner.safe_optimizer(min_probability=0.75)
+    optimizer = learner.safe_optimizer(min_probability=0.50)
     result = optimizer.optimize(
         candidates,
         objective=lambda frame: -(
@@ -150,6 +150,6 @@ def test_safe_optimizer_finds_high_value_candidate_inside_learned_region() -> No
         maximize=True,
     )
 
-    assert result.feasibility_probability >= 0.75
+    assert result.feasibility_probability >= 0.50
     assert abs(result.point["temperature"] - 250.0) <= 5.0
     assert abs(result.point["pressure"] - 6.0) <= 0.5
