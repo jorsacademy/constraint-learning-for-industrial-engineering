@@ -95,7 +95,7 @@ class ManufacturingConstraintLearner:
         self.label_mode = label_mode
         self.calibration_cv_splits = calibration_cv_splits
         self.safety_calibration_size = float(safety_calibration_size)
-        self.classifier_model: Pipeline | None = None
+        self.classifier_model: CalibratedClassifierCV | None = None
         self.model: CalibratedClassifierCV | None = None
         self.safety_filter: ConformalSafetyFilter | None = None
         self.simple_bounds: Dict[str, Dict[str, float]] = {}
@@ -173,7 +173,7 @@ class ManufacturingConstraintLearner:
         base_estimator = self._base_pipeline()
         X_classifier = pd.concat([X_fit, X_safety]).sort_index()
         y_classifier = pd.concat([y_fit, y_safety]).sort_index()
-        self.classifier_model = clone(base_estimator)
+        self.classifier_model = self._calibrated_model(clone(base_estimator))
         self.classifier_model.fit(X_classifier, y_classifier)
         self.model = self._calibrated_model(base_estimator)
         self.model.fit(X_fit, y_fit)
@@ -218,7 +218,7 @@ class ManufacturingConstraintLearner:
         best_estimator = clone(search.best_estimator_)
         X_classifier = pd.concat([X_fit, X_safety]).sort_index()
         y_classifier = pd.concat([y_fit, y_safety]).sort_index()
-        self.classifier_model = clone(best_estimator)
+        self.classifier_model = self._calibrated_model(clone(best_estimator))
         self.classifier_model.fit(X_classifier, y_classifier)
         self.model = self._calibrated_model(best_estimator)
         self.model.fit(X_fit, y_fit)
