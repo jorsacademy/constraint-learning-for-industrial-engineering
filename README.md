@@ -79,9 +79,12 @@ constraint-learning-for-industrial-engineering/
 │       ├── adaptive.py
 │       ├── constraint_learner.py
 │       ├── conformal.py
+│       ├── cpsat_embedding.py
 │       ├── drift.py
 │       ├── metrics.py
+│       ├── milp_embedding.py
 │       ├── optimization.py
+│       ├── surrogate.py
 │       └── tabular.py
 ├── examples/
 │   └── manufacturing_process.py
@@ -90,7 +93,8 @@ constraint-learning-for-industrial-engineering/
 ├── figures/
 ├── docs/
 │   ├── conformal_safety.md
-│   └── online_adaptation.md
+│   ├── online_adaptation.md
+│   └── solver_embedding.md
 ├── case_studies/
 │   ├── 01_manufacturing_process_optimization/
 │   ├── 02_energy_efficient_machine_settings/
@@ -170,6 +174,16 @@ post-adaptation batches through the full lifecycle:
 detect -> invalidate -> recalibrate/retrain -> revalidate -> deploy
 ```
 
+## Run the solver-embedding benchmark
+
+```bash
+python benchmarks/solver_embedding_comparison.py
+```
+
+This compares explicit candidate search, HiGHS MILP embedding, and OR-Tools
+CP-SAT embedding of the same risk-controlled tree surrogate. Every solver result
+is audited against the original calibrated/conformal teacher before acceptance.
+
 ## Run tests
 
 ```bash
@@ -223,6 +237,42 @@ result = optimizer.optimize(
 The optimizer first enforces explicit hard constraints, then requires the learned feasibility probability to exceed the configured threshold, and only then compares objective values. The default threshold of 0.50 matches the calibrated classifier decision rule; it is not a certified safety level. Higher thresholds should be chosen only after validating false-feasible behavior and the resulting feasible-set coverage for the application. This keeps OEM limits, legal rules, capacity limits, precedence relations, and other validated deterministic requirements separate from data-driven constraints.
 
 For synthetic benchmarks with known ground truth, `boundary_metrics()` reports intersection-over-union, false-feasible rate, false-infeasible rate, feasible precision/recall, and learned-vs-true feasible-region size. The false-feasible rate is particularly important because it measures the share of truly infeasible operating points incorrectly accepted by the learned model.
+
+## Direct MILP and CP-SAT embedding of learned constraints
+
+The active conformal-safe teacher can now be distilled into a bounded-depth
+decision tree and embedded directly in mathematical optimization.
+
+```text
+risk-controlled teacher
+-> sampled bounded design space
+-> tree surrogate
+-> held-out fidelity diagnostics
+-> MILP / CP-SAT encoding
+-> solver optimization with explicit hard constraints
+-> original-teacher audit
+-> accept or audited fallback
+```
+
+`SurrogateMILPOptimizer` encodes safe tree leaves with binary variables and
+tight bound-derived big-M implications using SciPy/HiGHS.
+`SurrogateCPSATOptimizer` encodes the same leaf paths with OR-Tools reified
+constraints on a user-defined integer lattice.
+
+The tree is only a surrogate of the learned safe set. Solver feasibility is
+therefore never treated as sufficient: the returned point must pass the original
+conformal p-value rule. If that audit fails, the optimizer fails closed unless
+an explicit fallback candidate set has been supplied.
+
+Hard engineering/policy constraints remain direct solver constraints; they are
+not distilled into the learned tree.
+
+Solver embeddings are deployment snapshots. After online recalibration or
+retraining increments the adaptive controller version, old tree encodings should
+be discarded and rebuilt against the current teacher.
+
+See [`docs/solver_embedding.md`](docs/solver_embedding.md) for the formulations,
+audit contract, discretization rules, and limitations.
 
 ## Distribution shift and online adaptation
 
