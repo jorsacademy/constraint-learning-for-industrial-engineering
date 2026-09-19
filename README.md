@@ -144,6 +144,16 @@ The executable case studies write evaluation figures into `figures/`.
 jupyter lab notebooks/manufacturing_constraint_learning.ipynb
 ```
 
+## Run the conformal risk sweep
+
+```bash
+python benchmarks/conformal_risk_sweep.py
+```
+
+This benchmark reports the trade-off between requested false-feasible risk,
+conformal score threshold, held-out false-feasible/false-infeasible rates,
+accepted-set size, and the selected manufacturing operating point.
+
 ## Run tests
 
 ```bash
