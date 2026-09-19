@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from sklearn.base import clone
+from sklearn.calibration import CalibratedClassifierCV
 from sklearn.metrics import (
     average_precision_score,
     balanced_accuracy_score,
@@ -24,6 +25,9 @@ from sklearn.model_selection import GridSearchCV, StratifiedKFold, train_test_sp
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
+
+from .metrics import BinaryRegionMetrics, evaluate_binary_region
+from .optimization import SafeCandidateOptimizer
 
 LabelMode = Literal["physical_feasibility", "high_yield"]
 
@@ -65,6 +69,7 @@ class ManufacturingConstraintLearner:
         test_size: float = 0.25,
         random_state: int = 42,
         label_mode: LabelMode = "physical_feasibility",
+        calibration_cv_splits: int = 3,
     ) -> None:
         required = {"temperature", "pressure", "yield"}
         if label_mode == "physical_feasibility":
@@ -76,13 +81,16 @@ class ManufacturingConstraintLearner:
             raise ValueError("test_size must be between 0 and 1")
         if label_mode not in ("physical_feasibility", "high_yield"):
             raise ValueError(f"Unsupported label_mode: {label_mode}")
+        if calibration_cv_splits < 2:
+            raise ValueError("calibration_cv_splits must be at least 2")
 
         self.data = data.copy()
         self.high_yield_threshold = high_yield_threshold
         self.test_size = test_size
         self.random_state = random_state
         self.label_mode = label_mode
-        self.model: Pipeline | None = None
+        self.calibration_cv_splits = calibration_cv_splits
+        self.model: CalibratedClassifierCV | Pipeline | None = None
         self.simple_bounds: Dict[str, Dict[str, float]] = {}
         self.best_params_: Dict[str, object] | None = None
         self.cv_best_score_: float | None = None
@@ -110,8 +118,21 @@ class ManufacturingConstraintLearner:
             ]
         )
 
+    def _calibrated_model(self, estimator: Pipeline) -> CalibratedClassifierCV:
+        """Wrap an estimator with cross-validated sigmoid probability calibration."""
+        return CalibratedClassifierCV(
+            estimator=estimator,
+            method="sigmoid",
+            cv=StratifiedKFold(
+                n_splits=self.calibration_cv_splits,
+                shuffle=True,
+                random_state=self.random_state,
+            ),
+            n_jobs=-1,
+        )
+
     def fit_feasibility_classifier(self) -> "ManufacturingConstraintLearner":
-        """Fit the default nonlinear SVM constraint classifier."""
+        """Fit the default nonlinear SVM constraint classifier with calibration."""
         X = self.data[list(self.feature_columns)]
         y = self._labels()
 
@@ -122,7 +143,7 @@ class ManufacturingConstraintLearner:
             random_state=self.random_state,
             stratify=y,
         )
-        self.model = self._base_pipeline()
+        self.model = self._calibrated_model(self._base_pipeline())
         self.model.fit(X_train, y_train)
         self._split = (X_train, X_test, y_train, y_test)
         self.best_params_ = None
@@ -165,12 +186,20 @@ class ManufacturingConstraintLearner:
         )
         search.fit(X_train, y_train)
 
-        self.model = clone(search.best_estimator_)
+        self.model = self._calibrated_model(clone(search.best_estimator_))
         self.model.fit(X_train, y_train)
         self._split = (X_train, X_test, y_train, y_test)
         self.best_params_ = dict(search.best_params_)
         self.cv_best_score_ = float(search.best_score_)
         return self
+
+    def _continuous_scores(self, X: pd.DataFrame) -> np.ndarray:
+        """Return continuous feasibility scores for ranking and curve metrics."""
+        if self.model is None:
+            raise RuntimeError("Fit the classifier before requesting scores")
+        if hasattr(self.model, "predict_proba"):
+            return np.asarray(self.model.predict_proba(X)[:, 1], dtype=float)
+        return np.asarray(self.model.decision_function(X), dtype=float)
 
     def evaluate(self) -> ConstraintEvaluation:
         """Evaluate the learned constraint on held-out data."""
@@ -179,7 +208,7 @@ class ManufacturingConstraintLearner:
 
         _, X_test, _, y_test = self._split
         predictions = self.model.predict(X_test)
-        scores = self.model.decision_function(X_test)
+        scores = self._continuous_scores(X_test)
         report = classification_report(
             y_test,
             predictions,
@@ -270,6 +299,60 @@ class ManufacturingConstraintLearner:
             raise RuntimeError("Fit the classifier before prediction")
         X = pd.DataFrame({"temperature": [temperature], "pressure": [pressure]})
         return bool(self.model.predict(X)[0])
+
+    def predict_feasibility_probability(
+        self,
+        temperature: float,
+        pressure: float,
+    ) -> float:
+        """Return the calibrated model probability of feasibility."""
+        if self.model is None:
+            raise RuntimeError("Fit the classifier before prediction")
+        X = pd.DataFrame({"temperature": [temperature], "pressure": [pressure]})
+        if not hasattr(self.model, "predict_proba"):
+            raise RuntimeError("The fitted model does not expose probabilities")
+        return float(self.model.predict_proba(X)[0, 1])
+
+    def predict_safe(
+        self,
+        temperature: float,
+        pressure: float,
+        min_probability: float = 0.95,
+    ) -> bool:
+        """Accept an operating point only above a configured probability threshold."""
+        if not 0.0 < min_probability <= 1.0:
+            raise ValueError("min_probability must be in (0, 1]")
+        return self.predict_feasibility_probability(temperature, pressure) >= min_probability
+
+    def boundary_metrics(self, grid_resolution: int = 200) -> BinaryRegionMetrics:
+        """Evaluate learned-vs-true feasible regions on a dense synthetic grid."""
+        if self.model is None:
+            raise RuntimeError("Fit the classifier before boundary evaluation")
+        if grid_resolution < 10:
+            raise ValueError("grid_resolution must be at least 10")
+
+        t_values = np.linspace(50.0, 450.0, grid_resolution)
+        p_values = np.linspace(0.0, 10.0, grid_resolution)
+        tt, pp = np.meshgrid(t_values, p_values)
+        grid = pd.DataFrame(
+            {"temperature": tt.ravel(), "pressure": pp.ravel()}
+        )
+        learned = self.model.predict(grid).reshape(tt.shape)
+        truth = self.true_physical_feasibility(tt, pp)
+        return evaluate_binary_region(truth, learned)
+
+    def safe_optimizer(
+        self,
+        min_probability: float = 0.95,
+    ) -> SafeCandidateOptimizer:
+        """Build a candidate optimizer using the fitted learned constraint."""
+        if self.model is None:
+            raise RuntimeError("Fit the classifier before building an optimizer")
+        return SafeCandidateOptimizer(
+            model=self.model,
+            feature_columns=self.feature_columns,
+            min_probability=min_probability,
+        )
 
     @staticmethod
     def true_physical_feasibility(
