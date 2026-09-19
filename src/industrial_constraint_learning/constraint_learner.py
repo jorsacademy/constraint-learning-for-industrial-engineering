@@ -26,6 +26,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
 
+from .conformal import ConformalSafetyFilter, SafetyFilterEvaluation
 from .metrics import BinaryRegionMetrics, evaluate_binary_region
 from .optimization import SafeCandidateOptimizer
 
@@ -70,6 +71,7 @@ class ManufacturingConstraintLearner:
         random_state: int = 42,
         label_mode: LabelMode = "physical_feasibility",
         calibration_cv_splits: int = 3,
+        safety_calibration_size: float = 0.20,
     ) -> None:
         required = {"temperature", "pressure", "yield"}
         if label_mode == "physical_feasibility":
@@ -83,6 +85,8 @@ class ManufacturingConstraintLearner:
             raise ValueError(f"Unsupported label_mode: {label_mode}")
         if calibration_cv_splits < 2:
             raise ValueError("calibration_cv_splits must be at least 2")
+        if not 0.0 < safety_calibration_size < 0.5:
+            raise ValueError("safety_calibration_size must be between 0 and 0.5")
 
         self.data = data.copy()
         self.high_yield_threshold = high_yield_threshold
@@ -90,7 +94,9 @@ class ManufacturingConstraintLearner:
         self.random_state = random_state
         self.label_mode = label_mode
         self.calibration_cv_splits = calibration_cv_splits
+        self.safety_calibration_size = float(safety_calibration_size)
         self.model: CalibratedClassifierCV | Pipeline | None = None
+        self.safety_filter: ConformalSafetyFilter | None = None
         self.simple_bounds: Dict[str, Dict[str, float]] = {}
         self.best_params_: Dict[str, object] | None = None
         self.cv_best_score_: float | None = None
@@ -131,21 +137,42 @@ class ManufacturingConstraintLearner:
             n_jobs=-1,
         )
 
-    def fit_feasibility_classifier(self) -> "ManufacturingConstraintLearner":
-        """Fit the default nonlinear SVM constraint classifier with calibration."""
-        X = self.data[list(self.feature_columns)]
-        y = self._labels()
-
-        X_train, X_test, y_train, y_test = train_test_split(
+    def _train_test_safety_split(self, X, y):
+        """Create independent fit, safety-calibration, and held-out test sets."""
+        X_train_pool, X_test, y_train_pool, y_test = train_test_split(
             X,
             y,
             test_size=self.test_size,
             random_state=self.random_state,
             stratify=y,
         )
+        X_fit, X_safety, y_fit, y_safety = train_test_split(
+            X_train_pool,
+            y_train_pool,
+            test_size=self.safety_calibration_size,
+            random_state=self.random_state + 1,
+            stratify=y_train_pool,
+        )
+        return X_fit, X_safety, X_test, y_fit, y_safety, y_test
+
+    def _fit_safety_filter(self, X_safety, y_safety) -> None:
+        if self.model is None:
+            raise RuntimeError("Fit the classifier before safety calibration")
+        scores = np.asarray(self.model.predict_proba(X_safety)[:, 1], dtype=float)
+        self.safety_filter = ConformalSafetyFilter().fit(scores, y_safety.to_numpy())
+
+    def fit_feasibility_classifier(self) -> "ManufacturingConstraintLearner":
+        """Fit the nonlinear SVM and an independent conformal safety filter."""
+        X = self.data[list(self.feature_columns)]
+        y = self._labels()
+
+        X_fit, X_safety, X_test, y_fit, y_safety, y_test = (
+            self._train_test_safety_split(X, y)
+        )
         self.model = self._calibrated_model(self._base_pipeline())
-        self.model.fit(X_train, y_train)
-        self._split = (X_train, X_test, y_train, y_test)
+        self.model.fit(X_fit, y_fit)
+        self._fit_safety_filter(X_safety, y_safety)
+        self._split = (X_fit, X_test, y_fit, y_test)
         self.best_params_ = None
         self.cv_best_score_ = None
         return self
@@ -161,12 +188,8 @@ class ManufacturingConstraintLearner:
 
         X = self.data[list(self.feature_columns)]
         y = self._labels()
-        X_train, X_test, y_train, y_test = train_test_split(
-            X,
-            y,
-            test_size=self.test_size,
-            random_state=self.random_state,
-            stratify=y,
+        X_fit, X_safety, X_test, y_fit, y_safety, y_test = (
+            self._train_test_safety_split(X, y)
         )
 
         search = GridSearchCV(
@@ -184,11 +207,12 @@ class ManufacturingConstraintLearner:
             n_jobs=-1,
             refit=True,
         )
-        search.fit(X_train, y_train)
+        search.fit(X_fit, y_fit)
 
         self.model = self._calibrated_model(clone(search.best_estimator_))
-        self.model.fit(X_train, y_train)
-        self._split = (X_train, X_test, y_train, y_test)
+        self.model.fit(X_fit, y_fit)
+        self._fit_safety_filter(X_safety, y_safety)
+        self._split = (X_fit, X_test, y_fit, y_test)
         self.best_params_ = dict(search.best_params_)
         self.cv_best_score_ = float(search.best_score_)
         return self
@@ -323,6 +347,62 @@ class ManufacturingConstraintLearner:
         if not 0.0 < min_probability <= 1.0:
             raise ValueError("min_probability must be in (0, 1]")
         return self.predict_feasibility_probability(temperature, pressure) >= min_probability
+
+    def conformal_p_value(
+        self,
+        temperature: float,
+        pressure: float,
+    ) -> float:
+        """Return the infeasible-class conformal p-value for an operating point."""
+        if self.safety_filter is None:
+            raise RuntimeError("Fit the classifier before conformal safety scoring")
+        score = self.predict_feasibility_probability(temperature, pressure)
+        return float(self.safety_filter.p_values(np.array([score]))[0])
+
+    def risk_controlled_threshold(self, alpha: float = 0.05) -> float:
+        """Return the probability threshold implied by the conformal safety filter."""
+        if self.safety_filter is None:
+            raise RuntimeError("Fit the classifier before safety calibration")
+        return self.safety_filter.probability_threshold(alpha=alpha)
+
+    def evaluate_safety_filter(
+        self,
+        alpha: float = 0.05,
+    ) -> SafetyFilterEvaluation:
+        """Evaluate conformal screening on the untouched held-out test set."""
+        if self.model is None or self._split is None or self.safety_filter is None:
+            raise RuntimeError("Fit the classifier before safety evaluation")
+        _, X_test, _, y_test = self._split
+        scores = np.asarray(self.model.predict_proba(X_test)[:, 1], dtype=float)
+        return self.safety_filter.evaluate(
+            scores,
+            y_test.to_numpy(),
+            alpha=alpha,
+        )
+
+    def risk_controlled_optimizer(
+        self,
+        alpha: float = 0.05,
+    ) -> SafeCandidateOptimizer:
+        """Build an optimizer using the conformal score threshold.
+
+        The conformal guarantee is marginal for a future candidate under
+        exchangeability. Optimizing over many screened candidates introduces
+        selection effects that require separate validation.
+        """
+        threshold = self.risk_controlled_threshold(alpha=alpha)
+        if not 0.0 < threshold <= 1.0:
+            raise RuntimeError(
+                "The conformal threshold is outside the probability range; "
+                "the requested alpha cannot produce a usable safe set."
+            )
+        if self.model is None:
+            raise RuntimeError("Fit the classifier before building an optimizer")
+        return SafeCandidateOptimizer(
+            model=self.model,
+            feature_columns=self.feature_columns,
+            min_probability=threshold,
+        )
 
     def boundary_metrics(self, grid_resolution: int = 200) -> BinaryRegionMetrics:
         """Evaluate learned-vs-true feasible regions on a dense synthetic grid."""
