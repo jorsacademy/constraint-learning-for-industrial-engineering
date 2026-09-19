@@ -80,7 +80,7 @@ class TabularConstraintLearner:
         self.random_state = int(random_state)
         self.calibration_cv_splits = int(calibration_cv_splits)
         self.safety_calibration_size = float(safety_calibration_size)
-        self.classifier_model: Pipeline | None = None
+        self.classifier_model: CalibratedClassifierCV | None = None
         self.model: CalibratedClassifierCV | None = None
         self.safety_filter: ConformalSafetyFilter | None = None
         self.best_params_: Dict[str, object] | None = None
@@ -168,7 +168,7 @@ class TabularConstraintLearner:
 
         X_classifier = pd.concat([X_fit, X_safety]).sort_index()
         y_classifier = pd.concat([y_fit, y_safety]).sort_index()
-        self.classifier_model = clone(estimator)
+        self.classifier_model = self._calibrated(clone(estimator))
         self.classifier_model.fit(X_classifier, y_classifier)
         self.model = self._calibrated(estimator)
         self.model.fit(X_fit, y_fit)
