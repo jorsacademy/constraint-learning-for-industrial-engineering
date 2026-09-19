@@ -26,7 +26,13 @@ def main() -> None:
     print(f"Average precision: {evaluation.average_precision:.3f}")
     print(f"False-feasible rate: {evaluation.false_feasible_rate:.3f}")
 
-    optimizer = learner.safe_optimizer(min_probability=0.50)
+    risk_alpha = 0.10
+    safety = learner.evaluate_safety_filter(alpha=risk_alpha)
+    print(f"Conformal probability threshold: {safety.probability_threshold:.3f}")
+    print(f"Held-out conformal false-feasible rate: {safety.false_feasible_rate:.3f}")
+    print(f"Held-out accepted fraction: {safety.accepted_fraction:.3f}")
+
+    optimizer = learner.risk_controlled_optimizer(alpha=risk_alpha)
     result = optimizer.optimize(
         data,
         objective=lambda frame: frame["design_cost"],
