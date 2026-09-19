@@ -2,29 +2,34 @@
 
 ## Industrial problem
 
-Learn workload and product-mix regions in which a shared production line can meet throughput targets without bottleneck overload, excessive idle time, or work-in-process growth.
+Learn product-mix and capacity regions where a shared production line remains stable while meeting throughput requirements without excessive utilization, WIP growth, or idle capacity.
 
-## Example variables
+## Features
 
-- product mix
-- station cycle times
+- product A mix
+- cycle-time variability
 - staffing level
 - buffer capacity
 - changeover frequency
 - target throughput
 
-## Learning target
+The synthetic line model generates effective capacity, utilization, throughput ratio, WIP, idle fraction, and a resource-cost proxy. The learned target is `stable_operation`. Staffing, buffer, and changeover policy limits remain explicit in `hard_capacity_compliant`.
 
-A feasible-production label based on throughput attainment, station utilization, queue growth, and work-in-process limits.
+## Workflow
 
-## Constraint-learning formulation
+```text
+synthetic line configurations
+-> calibrated nonlinear stability learner
+-> held-out stability evaluation
+-> explicit capacity-policy filter
+-> learned-probability filter
+-> minimum-resource screened configuration
+```
 
-Use historical shifts or discrete-event simulation experiments to learn combinations of product mix and capacity conditions that produce stable line performance.
+## Run
 
-## Validation
+```bash
+python case_studies/10_multi_product_line_balancing/run_case_study.py
+```
 
-Measure feasible-region precision and recall, bottleneck detection accuracy, throughput retention, and robustness under changes in demand mix.
-
-## Extension
-
-Use the learned feasibility surface as a screening constraint inside line-balancing, sequencing, or production-planning optimization.
+The learned stability surface is intended as a screening layer that can later be embedded in sequencing, line-balancing, or production-planning optimization.

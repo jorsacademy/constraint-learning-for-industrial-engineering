@@ -1,6 +1,6 @@
 # Constraint Learning for Industrial Engineering
 
-This repository demonstrates how data-driven constraint learning can be applied to industrial engineering problems. Six case studies are currently fully executable: manufacturing process constraint recovery, energy-efficient machine settings, assembly quality control, supply-chain feasibility, warehouse slotting, and job-shop scheduling.
+This repository demonstrates how data-driven constraint learning can be applied to industrial engineering problems. All ten case studies are executable: manufacturing process constraint recovery, energy-efficient machine settings, assembly quality control, supply-chain feasibility, warehouse slotting, job-shop scheduling, product design space, workforce shift scheduling, inventory control, and multi-product line balancing.
 
 The project is educational and research-oriented. It separates hard feasibility from high-performance operation, evaluates learned regions on held-out data, uses cross-validation for model selection, and distinguishes descriptive operating bounds from exact constraints. The manufacturing benchmark now also exposes cross-validated probability calibration, operational feasible-region diagnostics, and a downstream candidate optimizer that combines learned probabilistic constraints with explicit hard constraints.
 
@@ -43,6 +43,24 @@ The job-shop workflow models job count, due-date tightness, machine utilization,
 - a two-dimensional utilization/due-date-tightness slice of the learned six-dimensional region,
 - automated tests.
 
+### 07. Product design space
+
+The product-design workflow learns nonlinear combinations of wall thickness, material strength, rib ratio, tolerance, and mass associated with acceptable structural, deformation, thermal, and cost outcomes. Explicit mass and tolerance rules remain separate hard constraints during downstream screening.
+
+### 08. Workforce shift scheduling
+
+The workforce workflow learns staffing and demand conditions associated with acceptable service level, overtime, and workload. Shift-length, consecutive-shift, and break-coverage policy rules are kept deterministic and are applied before learned-probability screening.
+
+### 09. Inventory control
+
+The inventory workflow learns reorder-policy regions associated with service, stockout, holding-cost, and replenishment-stability targets. Explicit order/storage policy limits remain hard constraints, and a safe candidate optimizer screens minimum-cost observed policies.
+
+### 10. Multi-product line balancing
+
+The line-balancing workflow learns product-mix and capacity conditions associated with stable throughput, utilization, WIP, and idle-capacity behavior. Explicit staffing, buffer, and changeover policies remain separate from the learned stability model.
+
+Cases 07-10 share a reusable calibrated `TabularConstraintLearner` and the same hard-constraint-plus-learned-probability optimization semantics.
+
 ## Repository structure
 
 ```text
@@ -60,7 +78,8 @@ constraint-learning-for-industrial-engineering/
 │       ├── data_generation.py
 │       ├── constraint_learner.py
 │       ├── metrics.py
-│       └── optimization.py
+│       ├── optimization.py
+│       └── tabular.py
 ├── examples/
 │   └── manufacturing_process.py
 ├── notebooks/
@@ -108,6 +127,10 @@ python case_studies/03_assembly_quality_control/run_case_study.py
 python case_studies/04_supply_chain_feasibility/run_case_study.py
 python case_studies/05_warehouse_slotting/run_case_study.py
 python case_studies/06_job_shop_scheduling/run_case_study.py
+python case_studies/07_product_design_space/run_case_study.py
+python case_studies/08_workforce_shift_scheduling/run_case_study.py
+python case_studies/09_inventory_control/run_case_study.py
+python case_studies/10_multi_product_line_balancing/run_case_study.py
 ```
 
 The executable case studies write evaluation figures into `figures/`.
@@ -164,7 +187,7 @@ In real industrial applications, learned constraints should complement rather th
 
 ## Case studies
 
-Ten industrial engineering applications are organized under `case_studies/`. Cases 01-06 are executable. Cases 07-10 currently contain project specifications that can be expanded into independent computational experiments.
+Ten industrial engineering applications are organized under `case_studies/`, and all ten are executable computational experiments with automated test coverage. Cases 07-10 use the shared calibrated tabular learner and explicitly separate learned operational feasibility from deterministic policy or engineering constraints.
 
 ## License
 

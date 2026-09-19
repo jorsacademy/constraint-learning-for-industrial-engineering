@@ -2,29 +2,33 @@
 
 ## Industrial problem
 
-Learn regions of the design space that satisfy structural, thermal, cost, and manufacturability requirements using historical simulations or experiments.
+Learn nonlinear regions of a product-design space associated with acceptable structural, deformation, thermal, and cost outcomes while keeping explicit design rules separate from the learned model.
 
-## Example variables
+## Features
 
 - wall thickness
-- material properties
-- geometric ratios
-- reinforcement dimensions
+- material strength
+- rib ratio
 - manufacturing tolerance
 - component mass
 
-## Learning target
+The synthetic simulator produces stress, deformation, peak temperature, and design cost. The learned label is `operational_feasible`. Explicit tolerance and mass rules are stored separately as `hard_design_compliant` and are enforced by the downstream optimizer rather than learned from data.
 
-A design-feasibility label derived from simulation or test criteria such as stress, deformation, temperature, mass, and cost limits.
+## Workflow
 
-## Constraint-learning formulation
+```text
+synthetic design experiments
+-> calibrated RBF-SVM constraint learner
+-> held-out feasibility evaluation
+-> false-feasible / false-infeasible diagnostics
+-> safe candidate screening
+-> minimum-cost hard-compliant observed design
+```
 
-Treat expensive simulation results as labeled design points and learn a surrogate feasibility boundary. The model can reduce the number of infeasible designs sent to high-cost FEA or physical testing.
+## Run
 
-## Validation
+```bash
+python case_studies/07_product_design_space/run_case_study.py
+```
 
-Use held-out simulation cases, false-feasible rate, boundary accuracy near critical limits, and validation on a separate design family when possible.
-
-## Extension
-
-Combine the learned constraint with Bayesian optimization or evolutionary search to focus exploration on promising feasible regions.
+The implementation uses the shared `TabularConstraintLearner` so calibration, evaluation, and optimization semantics are consistent with the other tabular case studies.

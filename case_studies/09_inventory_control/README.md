@@ -2,29 +2,34 @@
 
 ## Industrial problem
 
-Learn reorder-policy regions that maintain service targets without excessive holding cost, shortages, or unstable replenishment behavior.
+Learn reorder-policy regions that deliver acceptable service, stockout frequency, holding cost, and replenishment stability under varying demand and lead-time conditions.
 
-## Example variables
+## Features
 
 - reorder point
 - order quantity
 - lead time
 - demand mean
-- demand variability
+- demand coefficient of variation
 - safety stock
 
-## Learning target
+The generator reports service level, stockout frequency, holding cost, replenishment instability, and total cost. The learned target is `operationally_acceptable`. Explicit order/storage policy limits are represented separately by `hard_policy_compliant`.
 
-A policy-feasibility label based on service level, stockout frequency, holding cost, and replenishment constraints.
+## Workflow
 
-## Constraint-learning formulation
+```text
+synthetic replenishment policies
+-> calibrated nonlinear feasibility learner
+-> held-out classification and unsafe-accept diagnostics
+-> hard policy screening
+-> learned-probability screening
+-> minimum-cost screened policy
+```
 
-Generate observations from historical replenishment cycles or simulation experiments and learn combinations of policy and demand parameters associated with acceptable performance.
+## Run
 
-## Validation
+```bash
+python case_studies/09_inventory_control/run_case_study.py
+```
 
-Use service-level recall, stockout-risk precision, total-cost distribution, and validation under demand regimes not used for fitting.
-
-## Extension
-
-Use the learned feasibility model to restrict candidate policies in simulation optimization, Bayesian optimization, or reinforcement-learning inventory control.
+This case is a screening benchmark rather than a stochastic-inventory optimality claim. Learned feasibility complements, rather than replaces, explicit planning constraints.
