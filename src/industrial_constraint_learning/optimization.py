@@ -49,7 +49,7 @@ class SafeCandidateOptimizer:
         self,
         model: ProbabilisticConstraintModel,
         feature_columns: Sequence[str],
-        min_probability: float = 0.95,
+        min_probability: float = 0.50,
     ) -> None:
         if not 0.0 < min_probability <= 1.0:
             raise ValueError("min_probability must be in (0, 1]")
