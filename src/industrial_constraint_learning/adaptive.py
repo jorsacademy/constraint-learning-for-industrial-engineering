@@ -115,15 +115,11 @@ class AdaptiveConstraintController:
         self.model_valid = True
         self.version = 1
 
-        if reference_data is not None:
-            self.reference_data = reference_data.copy()
-        else:
-            if learner._split is None:
-                raise ValueError("learner is missing its fit/test split")
-            X_fit, _, y_fit, _ = learner._split
-            self.reference_data = X_fit.copy()
-            self.reference_data[learner.label_column] = y_fit.astype(int).to_numpy()
-
+        self.reference_data = (
+            reference_data.copy()
+            if reference_data is not None
+            else learner.deployment_reference()
+        )
         self.history = self.reference_data.copy()
 
         self.drift_monitor = drift_monitor or DistributionShiftMonitor(
