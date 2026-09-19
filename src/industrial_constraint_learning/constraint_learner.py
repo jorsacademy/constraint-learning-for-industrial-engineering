@@ -71,7 +71,7 @@ class ManufacturingConstraintLearner:
         random_state: int = 42,
         label_mode: LabelMode = "physical_feasibility",
         calibration_cv_splits: int = 3,
-        safety_calibration_size: float = 0.20,
+        safety_calibration_size: float = 0.10,
     ) -> None:
         required = {"temperature", "pressure", "yield"}
         if label_mode == "physical_feasibility":
