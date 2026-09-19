@@ -159,3 +159,67 @@ def test_safe_optimizer_finds_high_value_candidate_inside_learned_region() -> No
         np.array([result.point["pressure"]]),
     )
     assert bool(true_feasible[0])
+
+
+def test_conformal_safety_filter_uses_independent_calibration_split() -> None:
+    data = generate_manufacturing_data(n_samples=5000, random_state=19)
+    learner = ManufacturingConstraintLearner(data).fit_feasibility_classifier()
+
+    assert learner.safety_filter is not None
+    assert learner.safety_filter.calibration_infeasible_count > 50
+    assert learner.safety_filter.minimum_attainable_p_value < 0.05
+
+    center_p = learner.conformal_p_value(250.0, 6.0)
+    bad_p = learner.conformal_p_value(100.0, 9.0)
+    assert 0.0 < center_p <= 1.0
+    assert 0.0 < bad_p <= 1.0
+    assert center_p < bad_p
+
+
+def test_risk_controlled_threshold_and_optimizer_are_consistent() -> None:
+    data = generate_manufacturing_data(n_samples=6000, random_state=20)
+    learner = ManufacturingConstraintLearner(data).fit_feasibility_classifier()
+
+    alpha = 0.10
+    threshold = learner.risk_controlled_threshold(alpha=alpha)
+    optimizer = learner.risk_controlled_optimizer(alpha=alpha)
+    assert optimizer.min_probability == threshold
+
+    temperatures = np.linspace(150.0, 350.0, 41)
+    pressures = np.linspace(2.0, 8.0, 31)
+    tt, pp = np.meshgrid(temperatures, pressures)
+    candidates = pd.DataFrame(
+        {"temperature": tt.ravel(), "pressure": pp.ravel()}
+    )
+    result = optimizer.optimize(
+        candidates,
+        objective=lambda frame: -(
+            ((frame["temperature"] - 250.0) / 100.0) ** 2
+            + ((frame["pressure"] - 6.0) / 3.0) ** 2
+        ),
+        hard_constraint=lambda frame: (
+            frame["temperature"].between(150.0, 350.0)
+            & frame["pressure"].between(2.0, 8.0)
+        ),
+        maximize=True,
+    )
+    assert result.feasibility_probability >= threshold
+
+    true_feasible = learner.true_physical_feasibility(
+        np.array([result.point["temperature"]]),
+        np.array([result.point["pressure"]]),
+    )
+    assert bool(true_feasible[0])
+
+
+def test_safety_filter_evaluation_is_reported_on_held_out_data() -> None:
+    data = generate_manufacturing_data(n_samples=6000, random_state=21)
+    learner = ManufacturingConstraintLearner(data).fit_feasibility_classifier()
+    evaluation = learner.evaluate_safety_filter(alpha=0.10)
+
+    assert evaluation.alpha == 0.10
+    assert 0.0 <= evaluation.false_feasible_rate <= 1.0
+    assert 0.0 <= evaluation.false_infeasible_rate <= 1.0
+    assert 0.0 <= evaluation.accepted_fraction <= 1.0
+    assert 0.0 <= evaluation.accepted_feasible_fraction <= 1.0
+    assert evaluation.calibration_infeasible_count > 0

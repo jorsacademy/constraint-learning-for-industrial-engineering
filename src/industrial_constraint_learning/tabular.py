@@ -21,6 +21,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
 
+from .conformal import ConformalSafetyFilter, SafetyFilterEvaluation
 from .optimization import SafeCandidateOptimizer
 
 
@@ -53,6 +54,7 @@ class TabularConstraintLearner:
         test_size: float = 0.25,
         random_state: int = 42,
         calibration_cv_splits: int = 3,
+        safety_calibration_size: float = 0.10,
     ) -> None:
         if not feature_columns:
             raise ValueError("feature_columns must not be empty")
@@ -60,6 +62,8 @@ class TabularConstraintLearner:
             raise ValueError("test_size must be between 0 and 1")
         if calibration_cv_splits < 2:
             raise ValueError("calibration_cv_splits must be at least 2")
+        if not 0.0 < safety_calibration_size < 0.5:
+            raise ValueError("safety_calibration_size must be between 0 and 0.5")
         required = set(feature_columns) | {label_column}
         missing = required.difference(data.columns)
         if missing:
@@ -75,7 +79,10 @@ class TabularConstraintLearner:
         self.test_size = float(test_size)
         self.random_state = int(random_state)
         self.calibration_cv_splits = int(calibration_cv_splits)
+        self.safety_calibration_size = float(safety_calibration_size)
+        self.classifier_model: CalibratedClassifierCV | None = None
         self.model: CalibratedClassifierCV | None = None
+        self.safety_filter: ConformalSafetyFilter | None = None
         self.best_params_: Dict[str, object] | None = None
         self.cv_best_score_: float | None = None
         self._split = None
@@ -120,12 +127,19 @@ class TabularConstraintLearner:
             raise ValueError("cv_splits must be at least 2")
         X = self.data.loc[:, self.feature_columns]
         y = self.data[self.label_column].astype(int)
-        X_train, X_test, y_train, y_test = train_test_split(
+        X_train_pool, X_test, y_train_pool, y_test = train_test_split(
             X,
             y,
             test_size=self.test_size,
             random_state=self.random_state,
             stratify=y,
+        )
+        X_fit, X_safety, y_fit, y_safety = train_test_split(
+            X_train_pool,
+            y_train_pool,
+            test_size=self.safety_calibration_size,
+            random_state=self.random_state + 1,
+            stratify=y_train_pool,
         )
 
         estimator = self._base_pipeline()
@@ -147,21 +161,33 @@ class TabularConstraintLearner:
                 n_jobs=-1,
                 refit=True,
             )
-            search.fit(X_train, y_train)
+            search.fit(X_fit, y_fit)
             estimator = clone(search.best_estimator_)
             self.best_params_ = dict(search.best_params_)
             self.cv_best_score_ = float(search.best_score_)
 
+        X_classifier = pd.concat([X_fit, X_safety]).sort_index()
+        y_classifier = pd.concat([y_fit, y_safety]).sort_index()
+        self.classifier_model = self._calibrated(clone(estimator))
+        self.classifier_model.fit(X_classifier, y_classifier)
         self.model = self._calibrated(estimator)
-        self.model.fit(X_train, y_train)
-        self._split = (X_train, X_test, y_train, y_test)
+        self.model.fit(X_fit, y_fit)
+        safety_scores = np.asarray(
+            self.model.predict_proba(X_safety)[:, 1],
+            dtype=float,
+        )
+        self.safety_filter = ConformalSafetyFilter().fit(
+            safety_scores,
+            y_safety.to_numpy(),
+        )
+        self._split = (X_fit, X_test, y_fit, y_test)
         return self
 
     def evaluate(self) -> TabularConstraintEvaluation:
-        if self.model is None or self._split is None:
+        if self.model is None or self.classifier_model is None or self._split is None:
             raise RuntimeError("Fit the learner before evaluation")
         _, X_test, _, y_test = self._split
-        pred = self.model.predict(X_test)
+        pred = self.classifier_model.predict(X_test)
         prob = self.model.predict_proba(X_test)[:, 1]
         matrix = confusion_matrix(y_test, pred, labels=[0, 1])
         tn, fp, fn, tp = matrix.ravel()
@@ -182,6 +208,58 @@ class TabularConstraintLearner:
         if missing:
             raise ValueError(f"Missing candidate columns: {sorted(missing)}")
         return self.model.predict_proba(candidates.loc[:, self.feature_columns])
+
+    def risk_controlled_threshold(self, alpha: float = 0.05) -> float:
+        """Return the probability threshold implied by conformal calibration."""
+        if self.safety_filter is None:
+            raise RuntimeError("Fit the learner before safety calibration")
+        return self.safety_filter.probability_threshold(alpha=alpha)
+
+    def evaluate_safety_filter(
+        self,
+        alpha: float = 0.05,
+    ) -> SafetyFilterEvaluation:
+        """Evaluate conformal screening on the untouched held-out test set."""
+        if self.model is None or self._split is None or self.safety_filter is None:
+            raise RuntimeError("Fit the learner before safety evaluation")
+        _, X_test, _, y_test = self._split
+        scores = np.asarray(self.model.predict_proba(X_test)[:, 1], dtype=float)
+        return self.safety_filter.evaluate(
+            scores,
+            y_test.to_numpy(),
+            alpha=alpha,
+        )
+
+    def conformal_p_values(self, candidates: pd.DataFrame) -> np.ndarray:
+        """Return infeasible-class conformal p-values for candidate rows."""
+        if self.safety_filter is None:
+            raise RuntimeError("Fit the learner before conformal safety scoring")
+        probabilities = self.predict_proba(candidates)[:, 1]
+        return self.safety_filter.p_values(probabilities)
+
+    def risk_controlled_optimizer(
+        self,
+        alpha: float = 0.05,
+    ) -> SafeCandidateOptimizer:
+        """Build an optimizer from the conformal probability threshold.
+
+        The class-conditional conformal guarantee is marginal for a future
+        candidate. Selecting the best point from many screened candidates is an
+        additional selection problem and requires separate validation.
+        """
+        threshold = self.risk_controlled_threshold(alpha=alpha)
+        if not 0.0 < threshold <= 1.0:
+            raise RuntimeError(
+                "The conformal threshold is outside the probability range; "
+                "the requested alpha cannot produce a usable safe set."
+            )
+        if self.model is None:
+            raise RuntimeError("Fit the learner before building an optimizer")
+        return SafeCandidateOptimizer(
+            self.model,
+            feature_columns=self.feature_columns,
+            min_probability=threshold,
+        )
 
     def safe_optimizer(self, min_probability: float = 0.50) -> SafeCandidateOptimizer:
         if self.model is None:

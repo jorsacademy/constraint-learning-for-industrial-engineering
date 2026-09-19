@@ -77,6 +77,7 @@ constraint-learning-for-industrial-engineering/
 │       ├── __init__.py
 │       ├── data_generation.py
 │       ├── constraint_learner.py
+│       ├── conformal.py
 │       ├── metrics.py
 │       ├── optimization.py
 │       └── tabular.py
@@ -85,6 +86,8 @@ constraint-learning-for-industrial-engineering/
 ├── notebooks/
 │   └── manufacturing_constraint_learning.ipynb
 ├── figures/
+├── docs/
+│   └── conformal_safety.md
 ├── case_studies/
 │   ├── 01_manufacturing_process_optimization/
 │   ├── 02_energy_efficient_machine_settings/
@@ -141,6 +144,16 @@ The executable case studies write evaluation figures into `figures/`.
 jupyter lab notebooks/manufacturing_constraint_learning.ipynb
 ```
 
+## Run the conformal risk sweep
+
+```bash
+python benchmarks/conformal_risk_sweep.py
+```
+
+This benchmark reports the trade-off between requested false-feasible risk,
+conformal score threshold, held-out false-feasible/false-infeasible rates,
+accepted-set size, and the selected manufacturing operating point.
+
 ## Run tests
 
 ```bash
@@ -148,6 +161,32 @@ pytest -q
 ```
 
 GitHub Actions runs the test suite on Python 3.10, 3.11, and 3.12.
+
+## Risk-controlled conformal safety sets
+
+The learned probability is now followed by an independent class-conditional
+conformal safety layer. Training uses separate model-fit, safety-calibration,
+and held-out test subsets. The safety filter constructs an infeasible-class
+conformal p-value and accepts a future candidate only when that p-value is below
+the configured `alpha`.
+
+```python
+evaluation = learner.evaluate_safety_filter(alpha=0.10)
+threshold = learner.risk_controlled_threshold(alpha=0.10)
+optimizer = learner.risk_controlled_optimizer(alpha=0.10)
+```
+
+Under exchangeability, this controls the marginal false-feasible probability for
+a future infeasible candidate at the chosen alpha level. It is not a physical
+safety certificate, and selecting the best point from many screened candidates
+is a separate multiple-selection problem that is not automatically covered by
+the single-candidate conformal guarantee.
+
+The API exposes the finite-sample resolution `1 / (n_infeasible + 1)`; if an
+alpha smaller than that cannot be supported by the calibration sample, the
+method raises instead of fabricating a threshold. See
+[`docs/conformal_safety.md`](docs/conformal_safety.md) for the statistical
+contract and limitations.
 
 ## Safe learned constraints and downstream optimization
 
