@@ -239,7 +239,7 @@ class ManufacturingConstraintLearner:
         _, X_test, _, _ = self._split
         y_true = self.data.loc[X_test.index, "physical_feasible"].astype(int)
         predictions = self.model.predict(X_test)
-        scores = self.model.decision_function(X_test)
+        scores = self._continuous_scores(X_test)
         report = classification_report(
             y_true,
             predictions,
@@ -443,7 +443,7 @@ class ManufacturingConstraintLearner:
         if self.model is None or self._split is None:
             raise RuntimeError("Fit the classifier before plotting")
         _, X_test, _, y_test = self._split
-        scores = self.model.decision_function(X_test)
+        scores = self._continuous_scores(X_test)
 
         fpr, tpr, _ = roc_curve(y_test, scores)
         precision, recall, _ = precision_recall_curve(y_test, scores)
