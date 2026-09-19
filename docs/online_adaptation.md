@@ -46,7 +46,9 @@ adaptation decision is being made.
 
 If labels are unavailable, the controller returns
 `invalidated_no_labels`. It does not claim that an unlabeled shifted batch can
-be safely recalibrated.
+be safely recalibrated. While invalidated,
+`controller.risk_controlled_optimizer()` raises instead of returning an
+optimizer, so the controller API is fail-closed by construction.
 
 ## Recalibration versus relearning
 
