@@ -299,6 +299,15 @@ class AdaptiveConstraintController:
         self.drift_monitor.fit(batch, scores, labels=labels)
         self.reference_data = batch.copy()
 
+    def risk_controlled_optimizer(self):
+        """Return the active optimizer only when the deployment is valid."""
+        if not self.model_valid:
+            raise RuntimeError(
+                "The learned safety layer is invalidated; adaptation and "
+                "revalidation are required before optimization."
+            )
+        return self.learner.risk_controlled_optimizer(alpha=self.policy.alpha)
+
     def process_batch(self, batch: pd.DataFrame) -> AdaptiveUpdateResult:
         """Detect drift and adapt the active learned constraint when justified."""
         missing = set(self.learner.feature_columns).difference(batch.columns)
