@@ -81,7 +81,7 @@ def main() -> None:
     candidates = pd.DataFrame(
         {"temperature": tt.ravel(), "pressure": pp.ravel()}
     )
-    safe_optimizer = benchmark.safe_optimizer(min_probability=0.90)
+    safe_optimizer = benchmark.safe_optimizer(min_probability=0.50)
     safe_solution = safe_optimizer.optimize(
         candidates,
         objective=lambda frame: (
