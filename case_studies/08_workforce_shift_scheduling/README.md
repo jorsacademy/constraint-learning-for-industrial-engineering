@@ -2,29 +2,34 @@
 
 ## Industrial problem
 
-Learn staffing and shift-pattern regions associated with acceptable service, workload, and operational reliability.
+Learn staffing and workload regions associated with acceptable service, overtime, and workload outcomes without replacing explicit workforce-policy constraints.
 
-## Example variables
+## Features
 
 - staffing level
 - shift length
 - consecutive shifts
 - skill mix
-- workload per employee
+- demand rate
 - break coverage
 
-## Learning target
+The synthetic operational model generates utilization, service level, overtime hours, workload index, and staffing cost. The learned target is `operationally_acceptable`. Shift-length, consecutive-shift, and break-coverage policy rules remain explicit in `policy_compliant`.
 
-A feasible-shift label based on service level, overtime, queueing, quality, and policy-compliance thresholds.
+## Workflow
 
-## Constraint-learning formulation
+```text
+shift-level operational observations
+-> calibrated nonlinear constraint learner
+-> held-out operational-feasibility evaluation
+-> explicit policy filter
+-> learned-probability filter
+-> minimum-cost screened shift
+```
 
-Use historical shift-level operational outcomes to learn combinations of staffing and demand conditions under which performance remains acceptable. Hard legal, contractual, and safety rules should remain explicit deterministic constraints rather than being replaced by a learned model.
+## Run
 
-## Validation
+```bash
+python case_studies/08_workforce_shift_scheduling/run_case_study.py
+```
 
-Use time-based validation, service-level recall, overtime reduction, workload balance, and robustness across weekdays, seasons, and demand regimes.
-
-## Extension
-
-Use the learned operational-feasibility model alongside explicit labor rules in workforce optimization or simulation-based staffing analysis.
+The case study intentionally separates descriptive operational learning from legal, contractual, or safety rules that should remain deterministic.
