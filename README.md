@@ -173,8 +173,8 @@ is a separate multiple-selection problem that is not automatically covered by
 the single-candidate conformal guarantee.
 
 The API exposes the finite-sample resolution `1 / (n_infeasible + 1)`; if an
-alpha smaller than that can be supported by the calibration sample, the method
-raises instead of fabricating a threshold. See
+alpha smaller than that cannot be supported by the calibration sample, the
+method raises instead of fabricating a threshold. See
 [`docs/conformal_safety.md`](docs/conformal_safety.md) for the statistical
 contract and limitations.
 
