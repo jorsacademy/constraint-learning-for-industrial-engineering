@@ -201,6 +201,15 @@ class TabularConstraintLearner:
             false_infeasible_rate=_ratio(int(fn), int(fn + tp)),
         )
 
+    def deployment_reference(self) -> pd.DataFrame:
+        """Return the model-fit partition for monitoring/adaptation reference."""
+        if self._split is None:
+            raise RuntimeError("Fit the learner before requesting a reference")
+        X_fit, _, y_fit, _ = self._split
+        reference = X_fit.copy()
+        reference[self.label_column] = y_fit.astype(int).to_numpy()
+        return reference
+
     def predict_proba(self, candidates: pd.DataFrame) -> np.ndarray:
         if self.model is None:
             raise RuntimeError("Fit the learner before prediction")
