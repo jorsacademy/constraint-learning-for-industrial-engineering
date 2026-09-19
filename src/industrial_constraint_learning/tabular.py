@@ -80,6 +80,7 @@ class TabularConstraintLearner:
         self.random_state = int(random_state)
         self.calibration_cv_splits = int(calibration_cv_splits)
         self.safety_calibration_size = float(safety_calibration_size)
+        self.classifier_model: Pipeline | None = None
         self.model: CalibratedClassifierCV | None = None
         self.safety_filter: ConformalSafetyFilter | None = None
         self.best_params_: Dict[str, object] | None = None
@@ -165,6 +166,8 @@ class TabularConstraintLearner:
             self.best_params_ = dict(search.best_params_)
             self.cv_best_score_ = float(search.best_score_)
 
+        self.classifier_model = clone(estimator)
+        self.classifier_model.fit(X_fit, y_fit)
         self.model = self._calibrated(estimator)
         self.model.fit(X_fit, y_fit)
         safety_scores = np.asarray(
@@ -179,10 +182,10 @@ class TabularConstraintLearner:
         return self
 
     def evaluate(self) -> TabularConstraintEvaluation:
-        if self.model is None or self._split is None:
+        if self.model is None or self.classifier_model is None or self._split is None:
             raise RuntimeError("Fit the learner before evaluation")
         _, X_test, _, y_test = self._split
-        pred = self.model.predict(X_test)
+        pred = self.classifier_model.predict(X_test)
         prob = self.model.predict_proba(X_test)[:, 1]
         matrix = confusion_matrix(y_test, pred, labels=[0, 1])
         tn, fp, fn, tp = matrix.ravel()
