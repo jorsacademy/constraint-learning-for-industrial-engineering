@@ -5,6 +5,7 @@ import sys
 
 import numpy as np
 import pandas as pd
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -206,3 +207,43 @@ def test_unlabeled_shift_invalidates_until_labels_arrive() -> None:
     assert result.action == "invalidated_no_labels"
     assert not result.model_valid
     assert not controller.model_valid
+    with pytest.raises(RuntimeError, match="invalidated"):
+        controller.risk_controlled_optimizer()
+
+
+def test_failed_retraining_keeps_controller_invalidated() -> None:
+    reference = make_linear_data(5000, 50)
+    batch = make_linear_data(1600, 51, reverse_concept=True)
+    rng = np.random.default_rng(52)
+    flip = rng.random(len(batch)) < 0.35
+    batch.loc[flip, "feasible"] = 1 - batch.loc[flip, "feasible"]
+
+    learner = fit_learner(reference, seed=50)
+    controller = AdaptiveConstraintController(
+        learner,
+        policy=AdaptivePolicy(
+            alpha=0.10,
+            max_balanced_accuracy_drop=0.05,
+            min_balanced_accuracy=0.95,
+            max_batch_false_feasible_rate=0.10,
+            max_safety_false_feasible_rate=0.10,
+            recent_window_size=1200,
+            retrain_tune=False,
+        ),
+        drift_monitor=DistributionShiftMonitor(
+            FEATURES,
+            feature_psi_threshold=0.30,
+            score_psi_threshold=0.30,
+            label_rate_delta_threshold=0.30,
+            min_batch_size=100,
+        ),
+    )
+
+    result = controller.process_batch(batch)
+
+    assert result.action == "invalidated_failed_validation"
+    assert not result.model_valid
+    assert not controller.model_valid
+    assert result.version == 1
+    with pytest.raises(RuntimeError, match="invalidated"):
+        controller.risk_controlled_optimizer()
