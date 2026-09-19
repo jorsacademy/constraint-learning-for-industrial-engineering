@@ -40,9 +40,8 @@ full data
 
 The probability/scoring SVM and its sigmoid calibration are fitted only on the
 model-fit subset. The conformal safety filter is then constructed on the
-independent safety-calibration subset. A separate decision-boundary SVM may use
-the full pre-test training pool because it is not used to generate conformal
-scores. The held-out test set is used only for final evaluation.
+independent safety-calibration subset. A separate calibrated decision model may use the full pre-test training pool
+because it is not used to generate conformal scores. The held-out test set is used only for final evaluation.
 
 ## Interpretation
 
