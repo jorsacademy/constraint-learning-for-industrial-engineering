@@ -317,7 +317,7 @@ class ManufacturingConstraintLearner:
         self,
         temperature: float,
         pressure: float,
-        min_probability: float = 0.95,
+        min_probability: float = 0.50,
     ) -> bool:
         """Accept an operating point only above a configured probability threshold."""
         if not 0.0 < min_probability <= 1.0:
@@ -343,7 +343,7 @@ class ManufacturingConstraintLearner:
 
     def safe_optimizer(
         self,
-        min_probability: float = 0.95,
+        min_probability: float = 0.50,
     ) -> SafeCandidateOptimizer:
         """Build a candidate optimizer using the fitted learned constraint."""
         if self.model is None:
