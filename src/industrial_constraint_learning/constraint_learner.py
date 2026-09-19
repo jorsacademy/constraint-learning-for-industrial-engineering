@@ -335,6 +335,22 @@ class ManufacturingConstraintLearner:
         X = pd.DataFrame({"temperature": [temperature], "pressure": [pressure]})
         return bool(self.classifier_model.predict(X)[0])
 
+    def predict_proba(self, candidates: pd.DataFrame) -> np.ndarray:
+        """Return calibrated feasibility probabilities for candidate rows."""
+        if self.model is None:
+            raise RuntimeError("Fit the classifier before prediction")
+        missing = set(self.feature_columns).difference(candidates.columns)
+        if missing:
+            raise ValueError(f"Missing candidate columns: {sorted(missing)}")
+        return self.model.predict_proba(candidates.loc[:, self.feature_columns])
+
+    def conformal_p_values(self, candidates: pd.DataFrame) -> np.ndarray:
+        """Return infeasible-class conformal p-values for candidate rows."""
+        if self.safety_filter is None:
+            raise RuntimeError("Fit the classifier before conformal safety scoring")
+        probabilities = self.predict_proba(candidates)[:, 1]
+        return self.safety_filter.p_values(probabilities)
+
     def predict_feasibility_probability(
         self,
         temperature: float,
