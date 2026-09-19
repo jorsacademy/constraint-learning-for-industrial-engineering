@@ -246,6 +246,12 @@ class SurrogateCPSATOptimizer:
                     self.feature_columns,
                 )
             ]
+            for raw, scaled in zip(spec.coefficients, integer_coefficients):
+                if raw != 0.0 and scaled == 0:
+                    raise ValueError(
+                        "linear_scale is too small to preserve a nonzero "
+                        "hard-constraint coefficient"
+                    )
             expression = sum(
                 coefficient * variable
                 for coefficient, variable in zip(integer_coefficients, x_vars)
@@ -269,6 +275,12 @@ class SurrogateCPSATOptimizer:
             )
             for coefficient, feature in zip(objective, self.feature_columns)
         ]
+        for raw, scaled in zip(objective, objective_coefficients_int):
+            if raw != 0.0 and scaled == 0:
+                raise ValueError(
+                    "linear_scale is too small to preserve a nonzero "
+                    "objective coefficient"
+                )
         objective_expression = sum(
             coefficient * variable
             for coefficient, variable in zip(objective_coefficients_int, x_vars)
