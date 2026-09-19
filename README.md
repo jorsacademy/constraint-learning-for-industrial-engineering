@@ -76,8 +76,10 @@ constraint-learning-for-industrial-engineering/
 │   └── industrial_constraint_learning/
 │       ├── __init__.py
 │       ├── data_generation.py
+│       ├── adaptive.py
 │       ├── constraint_learner.py
 │       ├── conformal.py
+│       ├── drift.py
 │       ├── metrics.py
 │       ├── optimization.py
 │       └── tabular.py
@@ -87,7 +89,8 @@ constraint-learning-for-industrial-engineering/
 │   └── manufacturing_constraint_learning.ipynb
 ├── figures/
 ├── docs/
-│   └── conformal_safety.md
+│   ├── conformal_safety.md
+│   └── online_adaptation.md
 ├── case_studies/
 │   ├── 01_manufacturing_process_optimization/
 │   ├── 02_energy_efficient_machine_settings/
@@ -154,6 +157,19 @@ This benchmark reports the trade-off between requested false-feasible risk,
 conformal score threshold, held-out false-feasible/false-infeasible rates,
 accepted-set size, and the selected manufacturing operating point.
 
+## Run the online drift-adaptation benchmark
+
+```bash
+python benchmarks/online_drift_adaptation.py
+```
+
+The benchmark streams stable, covariate-shifted, concept-shifted, and
+post-adaptation batches through the full lifecycle:
+
+```text
+detect -> invalidate -> recalibrate/retrain -> revalidate -> deploy
+```
+
 ## Run tests
 
 ```bash
@@ -207,6 +223,33 @@ result = optimizer.optimize(
 The optimizer first enforces explicit hard constraints, then requires the learned feasibility probability to exceed the configured threshold, and only then compares objective values. The default threshold of 0.50 matches the calibrated classifier decision rule; it is not a certified safety level. Higher thresholds should be chosen only after validating false-feasible behavior and the resulting feasible-set coverage for the application. This keeps OEM limits, legal rules, capacity limits, precedence relations, and other validated deterministic requirements separate from data-driven constraints.
 
 For synthetic benchmarks with known ground truth, `boundary_metrics()` reports intersection-over-union, false-feasible rate, false-infeasible rate, feasible precision/recall, and learned-vs-true feasible-region size. The false-feasible rate is particularly important because it measures the share of truly infeasible operating points incorrectly accepted by the learned model.
+
+## Distribution shift and online adaptation
+
+The repository now treats model validity as a deployment state rather than a
+permanent property. `DistributionShiftMonitor` tracks feature PSI, model-score
+PSI, and target-rate changes. `AdaptiveConstraintController` combines those
+signals with labeled batch performance to decide among:
+
+```text
+none
+recalibrated
+retrained
+invalidated_no_labels
+invalidated_failed_validation
+```
+
+Material drift invalidates the learned safety layer before adaptation. Moderate
+labeled shift can trigger conformal recalibration when the decision model remains
+adequate. Performance degradation or severe shift triggers full relearning on a
+recent rolling window. A candidate is deployed only after classification and
+conformal false-feasible gates pass.
+
+Unlabeled shift is fail-closed: the controller detects it but does not claim that
+the conformal layer can be safely refreshed without outcome labels.
+
+See [`docs/online_adaptation.md`](docs/online_adaptation.md) for the lifecycle,
+validation gates, monitoring assumptions, and limitations.
 
 ## Methodological notes
 
