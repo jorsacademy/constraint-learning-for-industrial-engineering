@@ -2,6 +2,7 @@
 
 from .adaptive import AdaptiveConstraintController, AdaptivePolicy, AdaptiveUpdateResult
 from .conformal import ConformalSafetyFilter, SafetyFilterEvaluation
+from .cpsat_embedding import CPSATEmbeddingResult, SurrogateCPSATOptimizer
 from .constraint_learner import ManufacturingConstraintLearner
 from .data_generation import generate_manufacturing_data
 from .drift import DistributionShiftMonitor, DriftReport
@@ -17,6 +18,7 @@ __all__ = [
     "AdaptiveUpdateResult",
     "BinaryRegionMetrics",
     "CandidateOptimizationResult",
+    "CPSATEmbeddingResult",
     "ConformalSafetyFilter",
     "DistributionShiftMonitor",
     "DriftReport",
@@ -26,6 +28,7 @@ __all__ = [
     "SafeCandidateOptimizer",
     "RiskControlledTreeSurrogate",
     "SafetyFilterEvaluation",
+    "SurrogateCPSATOptimizer",
     "SurrogateFidelity",
     "SurrogateMILPOptimizer",
     "TabularConstraintEvaluation",
