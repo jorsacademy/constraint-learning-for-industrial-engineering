@@ -107,6 +107,10 @@ def test_controller_keeps_valid_model_for_stable_batch() -> None:
             min_batch_size=100,
         ),
     )
+    assert learner._split is not None
+    _, heldout_X, _, _ = learner._split
+    assert set(controller.reference_data.index).isdisjoint(set(heldout_X.index))
+
     result = controller.process_batch(batch)
 
     assert result.action == "none"
