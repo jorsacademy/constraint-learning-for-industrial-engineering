@@ -18,6 +18,14 @@ observe batch
 -> deploy only after gates pass
 ```
 
+## Reference data and leakage control
+
+By default, the monitoring reference and rolling adaptation history start from
+the learner's model-fit partition only. The learner's held-out evaluation rows
+are not recycled into the online adaptation history. An explicit
+`reference_data` frame can be supplied when deployment has a separate approved
+reference window.
+
 ## Drift signals
 
 `DistributionShiftMonitor` tracks:
