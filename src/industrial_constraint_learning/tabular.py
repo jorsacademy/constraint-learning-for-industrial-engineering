@@ -54,7 +54,7 @@ class TabularConstraintLearner:
         test_size: float = 0.25,
         random_state: int = 42,
         calibration_cv_splits: int = 3,
-        safety_calibration_size: float = 0.20,
+        safety_calibration_size: float = 0.10,
     ) -> None:
         if not feature_columns:
             raise ValueError("feature_columns must not be empty")
