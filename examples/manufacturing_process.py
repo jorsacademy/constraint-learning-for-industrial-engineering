@@ -81,7 +81,23 @@ def main() -> None:
     candidates = pd.DataFrame(
         {"temperature": tt.ravel(), "pressure": pp.ravel()}
     )
-    safe_optimizer = benchmark.safe_optimizer(min_probability=0.50)
+    risk_alpha = 0.10
+    safety_evaluation = benchmark.evaluate_safety_filter(alpha=risk_alpha)
+    risk_threshold = benchmark.risk_controlled_threshold(alpha=risk_alpha)
+    print("\nConformal safety-filter diagnostics:")
+    print(f"  alpha: {risk_alpha:.3f}")
+    print(f"  probability threshold: {risk_threshold:.3f}")
+    print(
+        "  held-out false-feasible rate: "
+        f"{safety_evaluation.false_feasible_rate:.3f}"
+    )
+    print(
+        "  held-out false-infeasible rate: "
+        f"{safety_evaluation.false_infeasible_rate:.3f}"
+    )
+    print(f"  accepted fraction: {safety_evaluation.accepted_fraction:.3f}")
+
+    safe_optimizer = benchmark.risk_controlled_optimizer(alpha=risk_alpha)
     safe_solution = safe_optimizer.optimize(
         candidates,
         objective=lambda frame: (
