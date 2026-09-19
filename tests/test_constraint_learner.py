@@ -4,6 +4,7 @@ from pathlib import Path
 import sys
 
 import numpy as np
+import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -94,3 +95,61 @@ def test_high_yield_bounds_are_ordered() -> None:
     bounds = learner.learn_high_yield_bounds(quantile_margin=0.02)
     for values in bounds.values():
         assert values["min"] < values["max"]
+
+
+def test_calibrated_feasibility_probability_separates_reference_points() -> None:
+    data = generate_manufacturing_data(n_samples=4000, random_state=12)
+    learner = ManufacturingConstraintLearner(data).fit_feasibility_classifier()
+
+    good_probability = learner.predict_feasibility_probability(250.0, 6.0)
+    bad_probability = learner.predict_feasibility_probability(100.0, 9.0)
+
+    assert 0.0 <= bad_probability <= 1.0
+    assert 0.0 <= good_probability <= 1.0
+    assert good_probability > bad_probability
+    assert learner.predict_safe(250.0, 6.0, min_probability=0.75)
+    assert not learner.predict_safe(100.0, 9.0, min_probability=0.75)
+
+
+def test_boundary_metrics_report_meaningful_region_recovery() -> None:
+    data = generate_manufacturing_data(n_samples=5000, random_state=14)
+    learner = ManufacturingConstraintLearner(data).fit_feasibility_classifier()
+    metrics = learner.boundary_metrics(grid_resolution=100)
+
+    assert 0.0 <= metrics.intersection_over_union <= 1.0
+    assert 0.0 <= metrics.false_feasible_rate <= 1.0
+    assert 0.0 <= metrics.false_infeasible_rate <= 1.0
+    assert metrics.intersection_over_union > 0.50
+
+
+def test_safe_optimizer_finds_high_value_candidate_inside_learned_region() -> None:
+    data = generate_manufacturing_data(n_samples=5000, random_state=15)
+    learner = ManufacturingConstraintLearner(data).fit_feasibility_classifier()
+
+    temperatures = np.linspace(150.0, 350.0, 41)
+    pressures = np.linspace(2.0, 8.0, 31)
+    tt, pp = np.meshgrid(temperatures, pressures)
+    candidates = pd.DataFrame(
+        {
+            "temperature": tt.ravel(),
+            "pressure": pp.ravel(),
+        }
+    )
+
+    optimizer = learner.safe_optimizer(min_probability=0.75)
+    result = optimizer.optimize(
+        candidates,
+        objective=lambda frame: -(
+            ((frame["temperature"] - 250.0) / 100.0) ** 2
+            + ((frame["pressure"] - 6.0) / 3.0) ** 2
+        ),
+        hard_constraint=lambda frame: (
+            frame["temperature"].between(150.0, 350.0)
+            & frame["pressure"].between(2.0, 8.0)
+        ),
+        maximize=True,
+    )
+
+    assert result.feasibility_probability >= 0.75
+    assert abs(result.point["temperature"] - 250.0) <= 5.0
+    assert abs(result.point["pressure"] - 6.0) <= 0.5
