@@ -1,5 +1,11 @@
 # Constraint Learning for Industrial Engineering
 
+<!-- portfolio-umbrella:start -->
+## Portfolio role
+
+This repository is intentionally maintained as a standalone primary repository in the consolidated Jors Academy portfolio. It is not used as a container for other projects.
+<!-- portfolio-umbrella:end -->
+
 This repository demonstrates how data-driven constraint learning can be applied to industrial engineering problems. All ten case studies are executable: manufacturing process constraint recovery, energy-efficient machine settings, assembly quality control, supply-chain feasibility, warehouse slotting, job-shop scheduling, product design space, workforce shift scheduling, inventory control, and multi-product line balancing.
 
 The project is educational and research-oriented. It separates hard feasibility from high-performance operation, evaluates learned regions on held-out data, uses cross-validation for model selection, and distinguishes descriptive operating bounds from exact constraints. The manufacturing benchmark now also exposes cross-validated probability calibration, operational feasible-region diagnostics, and a downstream candidate optimizer that combines learned probabilistic constraints with explicit hard constraints.
